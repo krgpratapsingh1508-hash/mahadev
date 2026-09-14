@@ -1651,6 +1651,55 @@ else:
                     key="p4_file_format_type_selector"
                 )
 
+                # ==================================================================
+                # ✍️ Print Header Text Boxes Customizer (P2 जैसा ही सिस्टम, अब P4 के
+                # दोनों File Format सेक्शन — Admission Format और Fee Format — के लिए भी)
+                # ==================================================================
+                st.markdown("---")
+                if "p4_show_header_customizer_section" not in st.session_state:
+                    st.session_state.p4_show_header_customizer_section = True
+                hdr_p4_1, hdr_p4_2 = st.columns([6, 1])
+                with hdr_p4_1:
+                    st.subheader("✍️ प्रिंट हेडर कस्टमाइज़र (Print Header Text Customizer)")
+                with hdr_p4_2:
+                    st.write("")
+                    if st.button("🙈 Hide" if st.session_state.p4_show_header_customizer_section else "👁️ Unhide",
+                                 key="p4_toggle_header_customizer_section", use_container_width=True):
+                        st.session_state.p4_show_header_customizer_section = not st.session_state.p4_show_header_customizer_section
+
+                # 🔄 Header 3 ऑटो-सिंक — जब भी ऊपर "Select File Format Type" बदलेगा,
+                # बॉक्स 3 अपने आप उसी फॉर्मेट के नाम से रीफ़्रेश हो जाएगा (P2 के Year/Subject
+                # ऑटो-सिंक जैसा ही तरीका, बस यहाँ ट्रिगर File Format Type है)
+                default_header_2 = "ADMISSION FORMAT REPORT SHEET" if file_format_type.startswith("1.") else "FEE FORMAT REPORT SHEET"
+                default_header_3 = f"Format: {file_format_type}"
+
+                _p4h2_track_key = "_p4_h2_last_format"
+                if st.session_state.get(_p4h2_track_key) != file_format_type:
+                    st.session_state["p4_custom_head_line_2_final_fixed"] = default_header_2
+                    st.session_state["p4_custom_head_line_3_final_fixed"] = default_header_3
+                    st.session_state[_p4h2_track_key] = file_format_type
+
+                if st.session_state.p4_show_header_customizer_section:
+                    st.caption("नीचे दिए गए बॉक्स में आप जो भी लिखेंगे, वह Admission/Fee Format की प्रिंट रिपोर्ट के पहले पेज पर सबसे ऊपर दिखाई देगा। "
+                                "बॉक्स 2 और 3 File Format Type बदलने पर अपने आप अपडेट हो जाते हैं — चाहें तो इन्हें खुद भी बदल सकते हैं।")
+
+                    col_p4tb1, col_p4tb2, col_p4tb3, col_p4tb4 = st.columns(4)
+                    with col_p4tb1:
+                        custom_header_1 = st.text_input("1. हेडर लाइन 1 (उदा. कॉलेज का नाम):", value="GOVT. K.R.G. POST-GRADUATE AUTONOMOUS COLLEGE, GWALIOR (M.P.)", key="p4_custom_head_line_1_final_fixed")
+                    with col_p4tb2:
+                        custom_header_2 = st.text_input("2. हेडर लाइन 2 (उदा. रिपोर्ट का प्रकार):", value=default_header_2, key="p4_custom_head_line_2_final_fixed")
+                    with col_p4tb3:
+                        custom_header_3 = st.text_input("3. हेडर लाइन 3 (उदा. आदेश संख्या या कोई विशेष नोट):", value=default_header_3, key="p4_custom_head_line_3_final_fixed")
+                    with col_p4tb4:
+                        custom_header_4 = st.text_input("4. हेडर लाइन 4 (वैकल्पिक — कोई अतिरिक्त नोट):", value="", key="p4_custom_head_line_4_final_fixed")
+                else:
+                    st.caption("🙈 यह सेक्शन फ़िलहाल छुपा हुआ है। (Unhide करने पर पिछली सेटिंग बनी रहेगी)")
+
+                custom_header_1 = st.session_state.get("p4_custom_head_line_1_final_fixed", "GOVT. K.R.G. POST-GRADUATE AUTONOMOUS COLLEGE, GWALIOR (M.P.)")
+                custom_header_2 = st.session_state.get("p4_custom_head_line_2_final_fixed", default_header_2)
+                custom_header_3 = st.session_state.get("p4_custom_head_line_3_final_fixed", default_header_3)
+                custom_header_4 = st.session_state.get("p4_custom_head_line_4_final_fixed", "")
+
                 if file_format_type == "1. Upload Admission Format":
                     ADMISSION_FORMAT_COLUMNS = [
                         "Sr.No.", "Academic Batch", "Admission No.", "Enrollment No.",
@@ -1724,10 +1773,94 @@ else:
                             key="p4_admission_format_download_btn"
                         )
 
+                        # ==================================================================
+                        # 🖨️ Admission Format Print Engine (P2 जैसा ही Iframe Print System,
+                        # ऊपर के Print Header Customizer वाले custom_header_1..4 यहीं इस्तेमाल होते हैं)
+                        # ==================================================================
+                        adm_print_df = adm_fmt_df[ADMISSION_FORMAT_COLUMNS].copy()
+                        adm_columns_list = list(adm_print_df.columns)
+                        adm_records_list = adm_print_df.to_dict(orient="records")
+
+                        adm_headers_html = "".join([f"<th style='border:1px solid #111; padding:6px; background:#f2f2f2; font-weight:bold; text-align:center;'>{col}</th>" for col in adm_columns_list])
+
+                        adm_rows_html = ""
+                        for row in adm_records_list:
+                            adm_rows_html += "<tr>"
+                            for col in adm_columns_list:
+                                val = str(row.get(col, "")).replace("`", "'").replace("\n", " ")
+                                adm_rows_html += f"<td style='border:1px solid #111; padding:5px; text-align:left;'>{val}</td>"
+                            adm_rows_html += "</tr>"
+
+                        adm_clean_table_html = f"""
+                        <html>
+                        <head>
+                            <style>
+                                @page {{ size: A4 landscape; margin: 8mm; }}
+                                body {{ font-family: Arial, sans-serif; margin: 0; padding: 0; color: #000; }}
+                                .custom-print-header {{
+                                    width: 100%; border: 2px solid #1465de; background-color: #f4f8ff;
+                                    padding: 15px; margin-bottom: 20px; border-radius: 6px;
+                                    box-sizing: border-box; text-align: center;
+                                }}
+                                .h-line-1 {{ font-size: 16px; font-weight: bold; color: #1465de; margin-bottom: 5px; }}
+                                .h-line-2 {{ font-size: 14px; font-weight: bold; color: #333; margin-bottom: 5px; }}
+                                .h-line-3 {{ font-size: 12px; font-style: italic; color: #555; }}
+                                .h-line-4 {{ font-size: 12px; font-style: italic; color: #1465de; margin-top: 3px; }}
+                                table {{ width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 10px; }}
+                            </style>
+                        </head>
+                        <body>
+                            <div class="custom-print-header">
+                                <div class="h-line-1">{custom_header_1}</div>
+                                <div class="h-line-2">{custom_header_2}</div>
+                                <div class="h-line-3">{custom_header_3}</div>
+                                {f'<div class="h-line-4">{custom_header_4}</div>' if custom_header_4 and custom_header_4.strip() else ''}
+                            </div>
+                            <table>
+                                <thead><tr>{adm_headers_html}</tr></thead>
+                                <tbody>{adm_rows_html}</tbody>
+                            </table>
+                        </body>
+                        </html>
+                        """
+
+                        adm_safe_html_string = adm_clean_table_html.replace("\\", "\\\\").replace("`", "'").replace("\n", " ").replace("\r", "")
+
+                        components.html(
+                            f"""
+                            <html>
+                            <body>
+                                <script>
+                                function printP4AdmissionFormat() {{
+                                    var iframe = window.parent.document.createElement('iframe');
+                                    iframe.style.position = 'fixed'; iframe.style.right = '0'; iframe.style.bottom = '0';
+                                    iframe.style.width = '0'; iframe.style.height = '0'; iframe.style.border = '0';
+                                    window.parent.document.body.appendChild(iframe);
+
+                                    var doc = iframe.contentWindow.document;
+                                    doc.open(); doc.write(`{adm_safe_html_string}`); doc.close();
+                                    iframe.contentWindow.focus(); iframe.contentWindow.print();
+
+                                    setTimeout(function() {{ window.parent.document.body.removeChild(iframe); }}, 1000);
+                                }}
+                                </script>
+                                <button onclick="printP4AdmissionFormat()" style="
+                                    width: 100%; background-color: #1465de; color: white; padding: 14px;
+                                    border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 16px;
+                                    font-family: sans-serif; box-shadow: 0 4px 6px rgba(20, 101, 222, 0.2);">
+                                    🖨️ Click Here to Print Admission Format Report
+                                </button>
+                            </body>
+                            </html>
+                            """,
+                            height=70
+                        )
+
                 elif file_format_type == "2. Upload Fee Format":
                     st.info(
                         "⚙️ Fee Format के लिए कॉलम लिस्ट अभी तय नहीं है — कृपया बताएं कि इसमें कौन-कौन से "
-                        "कॉलम चाहिए ताकि यह फीचर भी Admission Format जैसा (validate + save to live database) बनाया जा सके।"
+                        "कॉलम चाहिए ताकि यह फीचर भी Admission Format जैसा (validate + save to live database, "
+                        "और ऊपर वाले Print Header Customizer के साथ प्रिंट) बनाया जा सके।"
                     )
 
                 st.markdown('</div>', unsafe_allow_html=True)
