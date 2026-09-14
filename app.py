@@ -81,29 +81,20 @@ DEFAULT_NOTICE = (
 )
 
 DEFAULT_CREDENTIALS = {
-    "admin": {"password": "admin15master", "role": "full_admin", "label": "👑 Super Admin (All 15 Panels Control)"},
+    "admin": {"password": "admin15master", "role": "full_admin", "label": "👑 Super Admin (Selected Panels Control)"},
     "p1_entry": {"password": "entry1123", "role": "p1_role", "label": "📝 P1: Student Data Onboarding Operator"},
     "p2_admission": {"password": "adm2123", "role": "p2_role", "label": "🎓 P2: Admission Control Manager"},
-    "p3_unique": {"password": "uniq3123", "role": "p3_role", "label": "🆔 P3: Unique ID Assignment Manager"},
-    "p4_roll": {"password": "roll4123", "role": "p4_role", "label": "🔢 P4: Roll Number Allocation Manager"},
-    "p5_enrollment": {"password": "enr5123", "role": "p5_role", "label": "📑 P5: University Enrollment Manager"},
     "p6_scholarship": {"password": "sch6123", "role": "p6_role", "label": "💰 P6: Portal & Scholarship Tracker"},
     "p7_cce": {"password": "cce7123", "role": "p7_role", "label": "🖨️ P7: CCE panel & Foil Sheet Generator"},
-    "p8_promotion": {"password": "pro8123", "role": "p8_role", "label": "📈 P8: Promotion panel Batch progression"},
-    "p9_result": {"password": "res9123", "role": "p9_role", "label": "📊 P9: Result panel Exam Controller"},
-    "p10_register": {"password": "reg10123", "role": "p10_role", "label": "📋 P10: Register panel Permanent Registry"},
     "p11_notice": {"password": "not11123", "role": "p11_role", "label": "📢 P11: System Informer Block"},
     "p12_login_view": {"password": "view12123", "role": "p12_role", "label": "📚 P12: Subject Syllabus Manager"},
-    "p13_merge": {"password": "mrg13123", "role": "p13_role", "label": "🔀 P13: Merge & Approve Panel"},
-    "p14_viewer": {"password": "view14123", "role": "p14_role", "label": "👁️ P14: Multi-Panel Inspection Window"}
+    "p13_merge": {"password": "mrg13123", "role": "p13_role", "label": "🔀 P13: Merge & Approve Panel"}
 }
 
 DEFAULT_PANELS = {
-    "P1": "Panal entry", "P2": "Admission panel", "P3": "Unique ID panel",
-    "P4": "Roll No. panel", "P5": "Enrollment panel", "P6": "Scholarship panel",
-    "P7": "CCE panel", "P8": "Promotion panel", "P9": "Result panel",
-    "P10": "Register panel", "P11": "notice board info", "P12": "📚 Subject Syllabus Manager",
-    "P13": "🔀 Merge & Approve Panel", "P14": "Panal viewer", "P15": "Panel admin"
+    "P1": "Panal entry", "P2": "Admission panel", "P6": "Scholarship panel",
+    "P7": "CCE panel", "P11": "notice board info", "P12": "📚 Subject Syllabus Manager",
+    "P13": "🔀 Merge & Approve Panel", "P15": "Panel admin"
 }
 
 DEFAULT_COLUMNS = [
@@ -776,18 +767,11 @@ else:
         allowed_panels = list(DEFAULT_PANELS.keys()) 
     elif role == "p1_role": allowed_panels = ["P1"]
     elif role == "p2_role": allowed_panels = ["P2"]
-    elif role == "p3_role": allowed_panels = ["P3"]
-    elif role == "p4_role": allowed_panels = ["P4"]
-    elif role == "p5_role": allowed_panels = ["P5"]
     elif role == "p6_role": allowed_panels = ["P6"]
     elif role == "p7_role": allowed_panels = ["P7"]
-    elif role == "p8_role": allowed_panels = ["P8"]
-    elif role == "p9_role": allowed_panels = ["P9"]
-    elif role == "p10_role": allowed_panels = ["P10"]
     elif role == "p11_role": allowed_panels = ["P11"]
     elif role == "p12_role": allowed_panels = ["P12"]
     elif role == "p13_role": allowed_panels = ["P13"]
-    elif role == "p14_role": allowed_panels = ["P14"]
 
     active_tabs_names = [f"{p} : {get_panel_title(p)}" for p in allowed_panels if not st.session_state.get(f"hide_panel_{p}", False) or role == "full_admin"]
     
@@ -2197,18 +2181,12 @@ else:
                 "Duration", "Mobile Number", "Email ID", "Address", "Status", "Current Year", "Payment Date"
             ]
             
-            # 🟢 P1 और P15 सहित सभी पैनल्स और उनके कॉलम की कम्प्लीट लिस्ट
+            # 🟢 सिर्फ मौजूद पैनल्स (P1, P2, P6, P7, P15) और उनके कॉलम की लिस्ट
             panel_columns_repository = {
                 "Panel 1: Data entry Onboarding": all_22_columns,
                 "Panel 2: Admission panel": ["Application Number", "Payment Date", "Admission Year", "Admission Session", "Student Name", "Father Name", "Mobile Number", "Status"],
-                "Panel 3: Unique ID panel": ["Admission Application Number", "Student Name", "Father Name", "Unique ID"],
-                "Panel 4: Roll No. panel": ["Admission Application Number", "Unique ID", "Student Name", "Roll No."],
-                "Panel 5: Enrollment panel": ["Admission Application Number", "Student Name", "Subject", "Enrollment No."],
                 "Panel 6: Scholarship panel": ["Admission Application Number", "Unique ID", "Student Name", "Category", "Scholarship Name", "Scholarship Status"],
                 "Panel 7: CCE panel": all_22_columns,
-                "Panel 8: Promotion panel": all_22_columns,
-                "Panel 9: Result panel": ["Admission Application Number", "Roll No.", "Enrollment No.", "Student Name", "Father Name", "Marks Obtained", "Result Status", "Exam Remarks"],
-                "Panel 10: Register panel": all_22_columns,
                 "Panel 15: Super-Admin Master Control": all_22_columns
             }
             
@@ -2482,11 +2460,8 @@ else:
                 # ----------------------------------------------------------------------
                 st.subheader("👑 Step 1: Select Main File Panel")
                 panel_options_map = {
-                    "Panel 2: Admission View": "P2", "Panel 3: Unique ID View": "P3",
-                    "Panel 4: Roll No View": "P4", "Panel 5: Enrollment View": "P5",
-                    "Panel 6: Scholarship View": "P6", "Panel 7: CCE panel View": "P7",
-                    "Panel 8: Promotion panel View": "P8", "Panel 9: Result panel View": "P9",
-                    "Panel 10: Register panel View": "P10"
+                    "Panel 2: Admission View": "P2",
+                    "Panel 6: Scholarship View": "P6", "Panel 7: CCE panel View": "P7"
                 }
                 
                 selected_main_panel_lbl = st.selectbox(
@@ -3044,31 +3019,15 @@ else:
                     st.rerun()
 
             if st.session_state.get("p15_show_panel_visibility", True):
-                vis_tabs = st.tabs(["🔒 Panels P1 - P7 Control", "🔒 Panels P8 - P15 Control"])
-                
-                # Visibility Panel Controllers Layer for P1 - P7
-                with vis_tabs[0]:
-                    c1, c2, c3, c4, c5, c6, c7 = st.columns(7)
-                    panels_p1_p7 = ["P1", "P2", "P3", "P4", "P5", "P6", "P7"]
-                    cols_p1_p7 = [c1, c2, c3, c4, c5, c6, c7]
-                    for i, p_key in enumerate(panels_p1_p7):
-                        with cols_p1_p7[i]:
-                            status_lbl = "🙈 Hidden" if st.session_state.get(f"hide_panel_{p_key}", False) else "👀 Active"
-                            if st.button(f"{p_key}\n({status_lbl})", use_container_width=True, key=f"p15_btn_v_final_{p_key}"):
-                                st.session_state[f"hide_panel_{p_key}"] = not st.session_state.get(f"hide_panel_{p_key}", False)
-                                st.rerun()
-
-                # Visibility Panel Controllers Layer for P8 - P15
-                with vis_tabs[1]:
-                    c8, c9, c10, c11, c12, c13, c14, c15 = st.columns(8)
-                    panels_p8_p15 = ["P8", "P9", "P10", "P11", "P12", "P13", "P14", "P15"]
-                    cols_p8_p15 = [c8, c9, c10, c11, c12, c13, c14, c15]
-                    for i, p_key in enumerate(panels_p8_p15):
-                        with cols_p8_p15[i]:
-                            status_lbl = "🙈 Hidden" if st.session_state.get(f"hide_panel_{p_key}", False) else "👀 Active"
-                            if st.button(f"{p_key}\n({status_lbl})", use_container_width=True, key=f"p15_btn_v_final_{p_key}"):
-                                st.session_state[f"hide_panel_{p_key}"] = not st.session_state.get(f"hide_panel_{p_key}", False)
-                                st.rerun()
+                # Visibility Panel Controllers Layer for the 8 active panels only
+                active_panel_keys = ["P1", "P2", "P6", "P7", "P11", "P12", "P13", "P15"]
+                vis_cols = st.columns(len(active_panel_keys))
+                for i, p_key in enumerate(active_panel_keys):
+                    with vis_cols[i]:
+                        status_lbl = "🙈 Hidden" if st.session_state.get(f"hide_panel_{p_key}", False) else "👀 Active"
+                        if st.button(f"{p_key}\n({status_lbl})", use_container_width=True, key=f"p15_btn_v_final_{p_key}"):
+                            st.session_state[f"hide_panel_{p_key}"] = not st.session_state.get(f"hide_panel_{p_key}", False)
+                            st.rerun()
 
             # ⚙️ सुपर-एडमिन मास्टर ड्रॉपडाउन लिस्ट कस्टमाइज़र
             st.markdown("---")
