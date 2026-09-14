@@ -1652,8 +1652,7 @@ else:
                 )
 
                 # ==================================================================
-                # ✍️ Print Header Text Boxes Customizer (P2 जैसा ही सिस्टम, अब P4 के
-                # दोनों File Format सेक्शन — Admission Format और Fee Format — के लिए भी)
+                # ✍️ Print Header Text Boxes Customizer (कॉलेज का नाम + रिपोर्ट टाइटल)
                 # ==================================================================
                 st.markdown("---")
                 if "p4_show_header_customizer_section" not in st.session_state:
@@ -1667,38 +1666,34 @@ else:
                                  key="p4_toggle_header_customizer_section", use_container_width=True):
                         st.session_state.p4_show_header_customizer_section = not st.session_state.p4_show_header_customizer_section
 
-                # 🔄 Header 3 ऑटो-सिंक — जब भी ऊपर "Select File Format Type" बदलेगा,
-                # बॉक्स 3 अपने आप उसी फॉर्मेट के नाम से रीफ़्रेश हो जाएगा (P2 के Year/Subject
-                # ऑटो-सिंक जैसा ही तरीका, बस यहाँ ट्रिगर File Format Type है)
+                # 🔄 Header 2 ऑटो-सिंक — जब भी ऊपर "Select File Format Type" बदलेगा,
+                # बॉक्स 2 अपने आप उसी फॉर्मेट के नाम से रीफ़्रेश हो जाएगा
                 default_header_2 = "ADMISSION FORMAT REPORT SHEET" if file_format_type.startswith("1.") else "FEE FORMAT REPORT SHEET"
-                default_header_3 = f"Format: {file_format_type}"
 
                 _p4h2_track_key = "_p4_h2_last_format"
                 if st.session_state.get(_p4h2_track_key) != file_format_type:
                     st.session_state["p4_custom_head_line_2_final_fixed"] = default_header_2
-                    st.session_state["p4_custom_head_line_3_final_fixed"] = default_header_3
                     st.session_state[_p4h2_track_key] = file_format_type
 
                 if st.session_state.p4_show_header_customizer_section:
                     st.caption("नीचे दिए गए बॉक्स में आप जो भी लिखेंगे, वह Admission/Fee Format की प्रिंट रिपोर्ट के पहले पेज पर सबसे ऊपर दिखाई देगा। "
-                                "बॉक्स 2 और 3 File Format Type बदलने पर अपने आप अपडेट हो जाते हैं — चाहें तो इन्हें खुद भी बदल सकते हैं।")
+                                "बॉक्स 2 File Format Type बदलने पर अपने आप अपडेट हो जाता है — चाहें तो खुद भी बदल सकते हैं। "
+                                "कॉलम-वाइज़ फ़िल्टर (किस कॉलम का कौन सा डेटा देखना/डाउनलोड करना है) नीचे टेबल के ऊपर मिलेगा।")
 
-                    col_p4tb1, col_p4tb2, col_p4tb3, col_p4tb4 = st.columns(4)
+                    col_p4tb1, col_p4tb2 = st.columns(2)
                     with col_p4tb1:
                         custom_header_1 = st.text_input("1. हेडर लाइन 1 (उदा. कॉलेज का नाम):", value="GOVT. K.R.G. POST-GRADUATE AUTONOMOUS COLLEGE, GWALIOR (M.P.)", key="p4_custom_head_line_1_final_fixed")
                     with col_p4tb2:
                         custom_header_2 = st.text_input("2. हेडर लाइन 2 (उदा. रिपोर्ट का प्रकार):", value=default_header_2, key="p4_custom_head_line_2_final_fixed")
-                    with col_p4tb3:
-                        custom_header_3 = st.text_input("3. हेडर लाइन 3 (उदा. आदेश संख्या या कोई विशेष नोट):", value=default_header_3, key="p4_custom_head_line_3_final_fixed")
-                    with col_p4tb4:
-                        custom_header_4 = st.text_input("4. हेडर लाइन 4 (वैकल्पिक — कोई अतिरिक्त नोट):", value="", key="p4_custom_head_line_4_final_fixed")
                 else:
                     st.caption("🙈 यह सेक्शन फ़िलहाल छुपा हुआ है। (Unhide करने पर पिछली सेटिंग बनी रहेगी)")
 
                 custom_header_1 = st.session_state.get("p4_custom_head_line_1_final_fixed", "GOVT. K.R.G. POST-GRADUATE AUTONOMOUS COLLEGE, GWALIOR (M.P.)")
                 custom_header_2 = st.session_state.get("p4_custom_head_line_2_final_fixed", default_header_2)
-                custom_header_3 = st.session_state.get("p4_custom_head_line_3_final_fixed", default_header_3)
-                custom_header_4 = st.session_state.get("p4_custom_head_line_4_final_fixed", "")
+                # 🟢 हेडर लाइन 3 और 4 अब नीचे दिए गए Column Filter Target / Filter Value
+                # चुनाव के अनुसार अपने आप बन जाएँगी (देखें: "3. Select Column Filter Target")
+                custom_header_3 = ""
+                custom_header_4 = ""
 
                 if file_format_type == "1. Upload Admission Format":
                     ADMISSION_FORMAT_COLUMNS = [
@@ -1762,22 +1757,76 @@ else:
                         adm_fmt_df.insert(0, "Sr.No.", range(1, len(adm_fmt_df) + 1))
 
                         st.success(f"✅ Admission Panel से कुल {len(adm_fmt_df)} रिकॉर्ड्स इस फॉर्मेट में मिले।")
-                        st.dataframe(adm_fmt_df[ADMISSION_FORMAT_COLUMNS], use_container_width=True, hide_index=True)
 
-                        st.download_button(
-                            label="📥 Admission Format Download करें (CSV)",
-                            data=adm_fmt_df[ADMISSION_FORMAT_COLUMNS].to_csv(index=False).encode('utf-8'),
-                            file_name="admission_format_export.csv",
-                            mime="text/csv",
-                            use_container_width=True,
-                            key="p4_admission_format_download_btn"
-                        )
+                        # ==================================================================
+                        # 🎛️ Column Filter Target + Filter Value (जो कॉलम चुनें, सिर्फ उसी
+                        # वैल्यू का डेटा नीचे दिखेगा और डाउनलोड होगा — CSV और XLSX दोनों में)
+                        # ==================================================================
+                        col_admf_1, col_admf_2 = st.columns(2)
+                        with col_admf_1:
+                            admf_filter_col_options = [c for c in ADMISSION_FORMAT_COLUMNS if c != "Sr.No."]
+                            admf_filter_col = st.selectbox(
+                                "3. Select Column Filter Target:",
+                                options=admf_filter_col_options,
+                                key="p4_admfmt_filter_col_select"
+                            )
+                        with col_admf_2:
+                            admf_val_options = ["All Values"] + sorted([
+                                v for v in adm_fmt_df[admf_filter_col].astype(str).str.strip().unique()
+                                if v and v.lower() != "nan"
+                            ])
+                            admf_filter_val = st.selectbox(
+                                f"4. Filter Value for '{admf_filter_col}':",
+                                options=admf_val_options,
+                                key="p4_admfmt_filter_val_select"
+                            )
+
+                        if admf_filter_val != "All Values":
+                            adm_fmt_view_df = adm_fmt_df[
+                                adm_fmt_df[admf_filter_col].astype(str).str.strip() == admf_filter_val
+                            ].copy()
+                        else:
+                            adm_fmt_view_df = adm_fmt_df.copy()
+
+                        # प्रिंट रिपोर्ट के हेडर में यही फ़िल्टर सिलेक्शन दिख जाए, इसलिए ऊपर के
+                        # custom_header_3 / custom_header_4 को यहीं से अपडेट कर रहे हैं
+                        custom_header_3 = f"Column: {admf_filter_col}"
+                        custom_header_4 = f"Value: {admf_filter_val}" if admf_filter_val != "All Values" else ""
+
+                        st.write(f"फ़िल्टर के बाद कुल रिकॉर्ड: **{len(adm_fmt_view_df)}**")
+                        st.dataframe(adm_fmt_view_df[ADMISSION_FORMAT_COLUMNS], use_container_width=True, hide_index=True)
+
+                        # ==================================================================
+                        # 📥 Download — CSV और XLSX दोनों फॉर्मेट में, सिर्फ ऊपर चुना हुआ (फ़िल्टर्ड) डेटा
+                        # ==================================================================
+                        col_admdl_1, col_admdl_2 = st.columns(2)
+                        with col_admdl_1:
+                            st.download_button(
+                                label="📥 CSV Download करें",
+                                data=adm_fmt_view_df[ADMISSION_FORMAT_COLUMNS].to_csv(index=False).encode('utf-8'),
+                                file_name="admission_format_export.csv",
+                                mime="text/csv",
+                                use_container_width=True,
+                                key="p4_admission_format_download_csv_btn"
+                            )
+                        with col_admdl_2:
+                            admf_xlsx_buffer = io.BytesIO()
+                            with pd.ExcelWriter(admf_xlsx_buffer, engine="openpyxl") as admf_writer:
+                                adm_fmt_view_df[ADMISSION_FORMAT_COLUMNS].to_excel(admf_writer, index=False, sheet_name="Admission Format")
+                            st.download_button(
+                                label="📥 XLSX Download करें",
+                                data=admf_xlsx_buffer.getvalue(),
+                                file_name="admission_format_export.xlsx",
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                use_container_width=True,
+                                key="p4_admission_format_download_xlsx_btn"
+                            )
 
                         # ==================================================================
                         # 🖨️ Admission Format Print Engine (P2 जैसा ही Iframe Print System,
                         # ऊपर के Print Header Customizer वाले custom_header_1..4 यहीं इस्तेमाल होते हैं)
                         # ==================================================================
-                        adm_print_df = adm_fmt_df[ADMISSION_FORMAT_COLUMNS].copy()
+                        adm_print_df = adm_fmt_view_df[ADMISSION_FORMAT_COLUMNS].copy()
                         adm_columns_list = list(adm_print_df.columns)
                         adm_records_list = adm_print_df.to_dict(orient="records")
 
