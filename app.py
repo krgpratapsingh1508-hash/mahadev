@@ -1760,6 +1760,22 @@ else:
                             else:
                                 adm_fmt_df[out_col] = ""
 
+                        # 🟢 DOB को हमेशा YYYY-MM-DD फॉर्मेट में दिखाने के लिए — चाहे DB में यह
+                        # किसी भी तारीख फॉर्मेट (DD-MM-YYYY, DD/MM/YYYY, आदि) में सेव हो।
+                        # जो वैल्यू तारीख के रूप में पहचानी नहीं जा सकी, वह जैसी है वैसी ही रहने दी गई है
+                        # ताकि कोई डेटा गुम न हो।
+                        dob_col_name = "Xth Board DOB(YYYY-MM-DD)*"
+                        if dob_col_name in adm_fmt_df.columns:
+                            def _to_yyyy_mm_dd(val):
+                                v = str(val).strip()
+                                if not v or v.lower() == "nan":
+                                    return v
+                                parsed_val = pd.to_datetime(v, errors="coerce", dayfirst=True)
+                                if pd.isna(parsed_val):
+                                    return v  # पहचान न हो पाए तो जैसा है वैसा ही रहने दें
+                                return parsed_val.strftime("%Y-%m-%d")
+                            adm_fmt_df[dob_col_name] = adm_fmt_df[dob_col_name].apply(_to_yyyy_mm_dd)
+
                         adm_fmt_df.insert(0, "Sr. No.", range(1, len(adm_fmt_df) + 1))
 
                         st.success(f"✅ Admission Panel से कुल {len(adm_fmt_df)} रिकॉर्ड्स इस फॉर्मेट में मिले।")
