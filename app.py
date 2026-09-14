@@ -39,7 +39,7 @@ NOTICE_FILE = "notice_board_schema.json"
 # 🟢 P12 SYLLABUS MANAGER: subject-wise syllabus (file ya link) yahin store hoga
 SYLLABUS_FILE = "subject_syllabus_schema.json"
 SYLLABUS_UPLOAD_DIR = "syllabus_uploads"
-# 🟢 Syllabus ke liye Year options — app me baaki jagah (P4/P10 etc.) jo standard Year
+# 🟢 Syllabus ke liye Year options — app me baaki jagah (P7/P10 etc.) jo standard Year
 # labels use hote hain (1st Year, 2nd Year...) wahi yahan bhi use kar rahe hain, taaki
 # poori app me Year ka matlab hamesha ek jaisa rahe.
 SYLLABUS_YEAR_OPTIONS = ["1st Year", "2nd Year", "3rd Year", "4th Year", "5th Year", "6th Year"]
@@ -84,17 +84,17 @@ DEFAULT_CREDENTIALS = {
     "admin": {"password": "admin15master", "role": "full_admin", "label": "👑 Super Admin (Selected Panels Control)"},
     "p1_entry": {"password": "entry1123", "role": "p1_role", "label": "📝 P1: Student Data Onboarding Operator"},
     "p2_admission": {"password": "adm2123", "role": "p2_role", "label": "🎓 P2: Admission Control Manager"},
-    "p3_scholarship": {"password": "sch6123", "role": "p3_role", "label": "💰 P3: Portal & Scholarship Tracker"},
-    "p4_cce": {"password": "cce7123", "role": "p4_role", "label": "🖨️ P4: CCE panel & File Format Upload"},
-    "p5_notice": {"password": "not11123", "role": "p5_role", "label": "📢 P5: System Informer Block"},
-    "p6_merge": {"password": "mrg13123", "role": "p6_role", "label": "🔀 P6: Merge & Approve Panel"},
-    "p7_viewer": {"password": "view14123", "role": "p7_role", "label": "👁️ P7: Multi-Panel Inspection Window"}
+    "p6_scholarship": {"password": "sch6123", "role": "p6_role", "label": "💰 P6: Portal & Scholarship Tracker"},
+    "p7_cce": {"password": "cce7123", "role": "p7_role", "label": "🖨️ P7: CCE panel & File Format Upload"},
+    "p11_notice": {"password": "not11123", "role": "p11_role", "label": "📢 P11: System Informer Block"},
+    "p12_login_view": {"password": "view12123", "role": "p12_role", "label": "📚 P12: Subject Syllabus Manager"},
+    "p13_merge": {"password": "mrg13123", "role": "p13_role", "label": "🔀 P13: Merge & Approve Panel"}
 }
 
 DEFAULT_PANELS = {
-    "P1": "Panal entry", "P2": "Admission panel", "P3": "Scholarship panel",
-    "P4": "CCE panel", "P5": "notice board info", "P6": "🔀 Merge & Approve Panel",
-    "P7": "Panal viewer", "P8": "Panel admin"
+    "P1": "Panal entry", "P2": "Admission panel", "P6": "Scholarship panel",
+    "P7": "CCE panel", "P11": "notice board info", "P12": "📚 Subject Syllabus Manager",
+    "P13": "🔀 Merge & Approve Panel", "P15": "Panel admin"
 }
 
 DEFAULT_COLUMNS = [
@@ -264,7 +264,7 @@ def linkify_notice_line(line_text):
 
     return _NOTICE_URL_PATTERN.sub(_make_link, escaped)
 
-# 🆕 P5 डायनेमिक कॉलम मैपिंग लोडर फंक्शन
+# 🆕 P11 डायनेमिक कॉलम मैपिंग लोडर फंक्शन
 def load_twin_mappings():
     if os.path.exists(TWIN_MAP_FILE):
         try:
@@ -274,7 +274,7 @@ def load_twin_mappings():
             return {}
     return {}
 
-# 🆕 P5 डायनेमिक कॉलम मैपिंग सेवर फंक्शन
+# 🆕 P11 डायनेमिक कॉलम मैपिंग सेवर फंक्शन
 def save_twin_mappings(mapping_dict):
     with open(TWIN_MAP_FILE, "w", encoding="utf-8") as f:
         json.dump(mapping_dict, f, ensure_ascii=False, indent=4)
@@ -291,7 +291,7 @@ def load_live_data():
         df = df.fillna("").reset_index(drop=True)
         df = apply_name_proper_case(df)
         
-        # 🔄 P5 डायनेमिक लोड-टाइम सिंक इंजन (Twin Sync)
+        # 🔄 P11 डायनेमिक लोड-टाइम सिंक इंजन (Twin Sync)
         twin_maps = load_twin_mappings()
         for source_col, target_col in twin_maps.items():
             if source_col in df.columns and target_col in df.columns:
@@ -312,7 +312,7 @@ def save_live_data(df_to_save):
 
     df_temp = df_to_save.copy()
     
-    # 🔄 P5 डायनेमिक सेव-टाइम सिंक इंजन (Twin Sync)
+    # 🔄 P11 डायनेमिक सेव-टाइम सिंक इंजन (Twin Sync)
     twin_maps = load_twin_mappings()
     for source_col, target_col in twin_maps.items():
         if source_col in df_temp.columns and target_col in df_temp.columns:
@@ -767,11 +767,11 @@ else:
         allowed_panels = list(DEFAULT_PANELS.keys()) 
     elif role == "p1_role": allowed_panels = ["P1"]
     elif role == "p2_role": allowed_panels = ["P2"]
-    elif role == "p3_role": allowed_panels = ["P3"]
-    elif role == "p4_role": allowed_panels = ["P4"]
-    elif role == "p5_role": allowed_panels = ["P5"]
     elif role == "p6_role": allowed_panels = ["P6"]
     elif role == "p7_role": allowed_panels = ["P7"]
+    elif role == "p11_role": allowed_panels = ["P11"]
+    elif role == "p12_role": allowed_panels = ["P12"]
+    elif role == "p13_role": allowed_panels = ["P13"]
 
     active_tabs_names = [f"{p} : {get_panel_title(p)}" for p in allowed_panels if not st.session_state.get(f"hide_panel_{p}", False) or role == "full_admin"]
     
@@ -786,11 +786,6 @@ else:
         # ----------------------------------------------------------------------
         # P1: PANEL ENTRY MODULE (3 Scroll Lists & Multi-Format Upload System)
         # ----------------------------------------------------------------------
-
-# ==========================================================
-# 🔽🔽🔽 EXTRACTED PANELS: P1, P2, P3, P4, P5, P12, P6, P8 🔽🔽🔽
-# ==========================================================
-
         if current_panel_id == "P1":
             st.header(f"📝 {get_panel_title('P1')} (Student Data Onboarding)")
             entry_method = st.selectbox(
@@ -1389,20 +1384,20 @@ else:
                     )
 
         # ----------------------------------------------------------------------
-        # P3: PANEL UNIQUE ID MODULE (Student Unique ID Mapping Engine)
+        # P6: PANEL SCHOLARSHIP MODULE (Portal & Scholarship Tracker)
         # ----------------------------------------------------------------------
-        elif current_panel_id == "P3":
-            st.header(f"💰 {get_panel_title('P3')} (Portal & Scholarship Tracker)")
+        elif current_panel_id == "P6":
+            st.header(f"💰 {get_panel_title('P6')} (Portal & Scholarship Tracker)")
             
             # Ensure the tracking fallback status column exists inside the master dataframe array
             if "Scholarship Status" not in live_db.columns: 
                 live_db["Scholarship Status"] = "Not Applied"
                 
-            # 🔍 Isolated Firewall Query Filter Rule: Only fetch records explicitly approved for P3
-            p3_authorized_db = live_db[live_db["Target Panel Visibility"] == "P3"].copy()
+            # 🔍 Isolated Firewall Query Filter Rule: Only fetch records explicitly approved for P6
+            p6_authorized_db = live_db[live_db["Target Panel Visibility"] == "P6"].copy()
             
-            if p3_authorized_db.empty:
-                st.warning("⚠️ इस पैनल के लिए कोई अधिकृत स्वीकृत (Approved) डेटा उपलब्ध नहीं है। कृपया पहले P6 (Merge Panel) से डेटा को इस पैनल पर असाइन कर अप्रूव करें।")
+            if p6_authorized_db.empty:
+                st.warning("⚠️ इस पैनल के लिए कोई अधिकृत स्वीकृत (Approved) डेटा उपलब्ध नहीं है। कृपया पहले P13 (Merge Panel) से डेटा को इस पैनल पर असाइन कर अप्रूव करें।")
             else:
                 # 🟢 सही किया गया कोड
                 st.markdown(
@@ -1419,14 +1414,14 @@ else:
                     "Email Id": "Email ID", "Year": "Current Year",
                     "Application Number": "Admission Application Number"
                 }
-                p3_authorized_db = p3_authorized_db.rename(columns=column_mapping_fixes)
+                p6_authorized_db = p6_authorized_db.rename(columns=column_mapping_fixes)
 
                 # Isolate unique list categories to build search shorting options cleanly
-                available_categories = ["All"] + sorted(list(set(p3_authorized_db["Category"].dropna().astype(str).str.strip())))
-                selected_category = st.selectbox("Category (वर्ग) फ़िल्टर चुनें:", options=available_categories, key="p3_category_filter_secure_select_box")
+                available_categories = ["All"] + sorted(list(set(p6_authorized_db["Category"].dropna().astype(str).str.strip())))
+                selected_category = st.selectbox("Category (वर्ग) फ़िल्टर चुनें:", options=available_categories, key="p6_category_filter_secure_select_box")
                 
                 # Apply row shorting filters based on category criteria selection
-                filtered_scholarship = p3_authorized_db.copy()
+                filtered_scholarship = p6_authorized_db.copy()
                 if selected_category != "All": 
                     filtered_scholarship = filtered_scholarship[filtered_scholarship["Category"].str.strip() == selected_category]
                 
@@ -1449,7 +1444,7 @@ else:
                 st.write(f"ग्रिड में प्रदर्शित कुल सक्रिय रिकॉर्ड संख्या (Active Matrix Profiles): **{len(render_df)}**")
                 
                 # 🔐 Access Restriction Interface (Security Gateway)
-                if role == "full_admin" or role == "p3_role":
+                if role == "full_admin" or role == "p6_role":
                     # Admins and designated operators can interactively modify the Scholarship Status field
                     disabled_cols = [c for c in render_df.columns if c != "Scholarship Status"]
                     st.info("🔓 **एडमिन कंट्रोल मोड:** आपके पास छात्रवृत्ति ट्रैकिंग मैट्रिक्स (Scholarship Status) एडिट और सिंक करने का पूर्ण अधिकार है।")
@@ -1476,8 +1471,8 @@ else:
                 )
                 
                 # Commit updates engine to synchronize state modifications with core live datasets
-                if role == "full_admin" or role == "p3_role":
-                    if st.button("Save & Sync Scholarship Matrix", type="primary", use_container_width=True, key="p3_save_btn_secure_tracker_engine"):
+                if role == "full_admin" or role == "p6_role":
+                    if st.button("Save & Sync Scholarship Matrix", type="primary", use_container_width=True, key="p6_save_btn_secure_tracker_engine"):
                         try:
                             clean_edited = edited_scholarship_df.drop(columns=["S. No."], errors="ignore")
                             scholarship_sync_counter = 0
@@ -1501,19 +1496,19 @@ else:
                             st.error(f"डेटा सिंक्रोनाइज़ेशन चक्र में तकनीकी समस्या आई: {e}")
 
         # ----------------------------------------------------------------------
-        # P4: PANEL CCE DESK (Strict 22-Cols Selection, Map & Custom Foil System)
+        # P7: PANEL CCE DESK (Strict 22-Cols Selection, Map & File Format Upload System)
         # ----------------------------------------------------------------------
-        elif current_panel_id == "P4":
-            st.header(f"📋 {get_panel_title('P4')} (Complete CCE Management & Foil Desk)")
+        elif current_panel_id == "P7":
+            st.header(f"📋 {get_panel_title('P7')} (Complete CCE Management & Foil Desk)")
             
             # सुनिश्चित करें कि मार्क्स वाले कॉलम डेटाबेस स्कीमा में मौजूद हों
             for f in ["CCE Marks Obtained", "CCE Attendance Status"]:
                 if f not in live_db.columns: 
                     live_db[f] = ""
             
-            p4_authorized_db = live_db.copy()
+            p7_authorized_db = live_db.copy()
 
-            if p4_authorized_db.empty: 
+            if p7_authorized_db.empty: 
                 st.warning("⚠️ इस पैनल के लिए कोई अधिकृत स्वीकृत (Approved) डेटा उपलब्ध नहीं है।")
             else:
                 # ------------------------------------------------------------------
@@ -1550,7 +1545,7 @@ else:
                     "Enrollment No": "Enrollment No.", "Enrollment No.": "Enrollment No."
                 }
                 
-                filtered_cce = p4_authorized_db.copy()
+                filtered_cce = p7_authorized_db.copy()
                 filtered_cce = filtered_cce.rename(columns=column_mapping_fixes)
 
                 if "Application Number" in filtered_cce.columns and "Admission Application Number" not in filtered_cce.columns:
@@ -1581,7 +1576,7 @@ else:
                 
                 # CCE लाइव डेटा एडिटर ग्रिड
                 st.markdown('<div class="print-hide">', unsafe_allow_html=True)
-                if role in ["full_admin", "p4_role"]:
+                if role in ["full_admin", "p7_role"]:
                     disabled_cols = [c for c in render_df.columns if c not in ["CCE Marks Obtained", "CCE Attendance Status"]]
                     st.info("🔓 **डेटा एंट्री मोड एक्टिव:** आप CCE Marks और Attendance Status बदल सकते हैं।")
                 else:
@@ -1600,8 +1595,8 @@ else:
                     hide_index=True
                 )
                 
-                if role in ["full_admin", "p4_role"]:
-                    if st.button("💾 Save Grid Changes to Master Database", type="primary", use_container_width=True, key="p4_save_grid_btn"):
+                if role in ["full_admin", "p7_role"]:
+                    if st.button("💾 Save Grid Changes to Master Database", type="primary", use_container_width=True, key="p7_save_grid_btn"):
                         try:
                             clean_edited = edited_cce.drop(columns=["S. No."], errors="ignore")
                             cce_sync_counter = 0
@@ -1638,7 +1633,7 @@ else:
                         "1. Upload Admission Format",
                         "2. Upload Fee Format"
                     ],
-                    key="p4_file_format_type_selector"
+                    key="p7_file_format_type_selector"
                 )
 
                 if file_format_type == "1. Upload Admission Format":
@@ -1657,7 +1652,7 @@ else:
                     admission_format_file = st.file_uploader(
                         "📤 Admission Format फ़ाइल अपलोड करें (CSV / XLSX):",
                         type=["csv", "xlsx", "xls"],
-                        key="p4_admission_format_uploader"
+                        key="p7_admission_format_uploader"
                     )
 
                     if admission_format_file is not None:
@@ -1702,7 +1697,7 @@ else:
                                 st.success(f"✅ फ़ाइल वैलिडेट हो गई! कुल {len(adm_fmt_df)} रिकॉर्ड्स मिले।")
                                 st.dataframe(adm_fmt_df[ADMISSION_FORMAT_COLUMNS], use_container_width=True, hide_index=True)
 
-                                if st.button("💾 Validate & Save to Live Database", type="primary", use_container_width=True, key="p4_admission_format_save_btn"):
+                                if st.button("💾 Validate & Save to Live Database", type="primary", use_container_width=True, key="p7_admission_format_save_btn"):
                                     clean_adm_fmt_df = adm_fmt_df[ADMISSION_FORMAT_COLUMNS].copy()
 
                                     for extra_col in DEFAULT_COLUMNS:
@@ -1728,15 +1723,15 @@ else:
                 st.markdown('</div>', unsafe_allow_html=True)
 
         # ----------------------------------------------------------------------
-        # P5: ADVANCED PANEL-WISE COLUMN TWIN MAPPING SYSTEM (Fixed Core Sync)
+        # P11: ADVANCED PANEL-WISE COLUMN TWIN MAPPING SYSTEM (Fixed Core Sync)
         # ----------------------------------------------------------------------
-        elif current_panel_id == "P5":
-            st.header(f"📢 {get_panel_title('P5')} (Advanced Panel Column Linker)")
+        elif current_panel_id == "P11":
+            st.header(f"📢 {get_panel_title('P11')} (Advanced Panel Column Linker)")
             
             # 🟢 Corrected Safe Single-Quote Concatenation Format
             st.markdown(
                 '<div style="background-color: #f4fbf7; border-left: 5px solid #2e7d32; padding: 12px; border-radius: 4px; margin-bottom: 20px;">'
-                '🎯 <b>कंट्रोल निर्देश:</b> यहाँ से आप किसी भी एक वर्किंग पैनल (P1 से P8) के कॉलम को किसी दूसरे पैनल के कॉलम के साथ आपस में जोड़ सकते हैं।'
+                '🎯 <b>कंट्रोल निर्देश:</b> यहाँ से आप किसी भी एक वर्किंग पैनल (P1 से P15) के कॉलम को किसी दूसरे पैनल के कॉलम के साथ आपस में जोड़ सकते हैं।'
                 '<br>1. बाईं तरफ (Source) वह पैनल और कॉलम चुनें जहां से डेटा सिंक करना शुरू करना है।'
                 '<br>2. दाईं तरफ (Target) वह पैनल और कॉलम चुनें जिसके साथ डेटा लिंक और एक्सचेंज करना है।'
                 '<br><br>⚠️ <b>नो न्यू कॉलम पॉलिसी:</b> सिस्टम डेटाबेस में कोई भी नया कॉलम नहीं बनाएगा। दोनों पैनल्स के चुने गए कॉलम्स के बीच बैकएंड डेटा लाइव एक्सचेंज और सिंक हो जाएगा।'
@@ -1752,7 +1747,7 @@ else:
                 "Duration", "Mobile Number", "Email ID", "Address", "Status", "Current Year", "Payment Date"
             ]
             
-            # 🟢 सिर्फ मौजूद पैनल्स (P1, P2, P3, P4, P8) और उनके कॉलम की लिस्ट
+            # 🟢 सिर्फ मौजूद पैनल्स (P1, P2, P6, P7, P15) और उनके कॉलम की लिस्ट
             panel_columns_repository = {
                 "Panel 1: Data entry Onboarding": all_22_columns,
                 "Panel 2: Admission panel": ["Application Number", "Payment Date", "Admission Year", "Admission Session", "Student Name", "Father Name", "Mobile Number", "Status"],
@@ -1773,7 +1768,7 @@ else:
                 left_panel = st.selectbox(
                     "🏢 1. सोर्स पैनल चुनें (From Panel):",
                     options=list(panel_columns_repository.keys()),
-                    key="p5_left_panel_select"
+                    key="p11_left_panel_select"
                 )
                 
             with col_p11_left_c:
@@ -1782,7 +1777,7 @@ else:
                 src_selection = st.selectbox(
                     "⬅️ 2. सोर्स कॉलम (Source Column):",
                     options=left_available_cols,
-                    key="p5_left_col_select"
+                    key="p11_left_col_select"
                 )
                 
             with col_p11_right_p:
@@ -1790,7 +1785,7 @@ else:
                 right_panel = st.selectbox(
                     "🏢 3. टारगेट पैनल चुनें (To Panel):",
                     options=list(panel_columns_repository.keys()),
-                    key="p5_right_panel_select"
+                    key="p11_right_panel_select"
                 )
                 
             with col_p11_right_c:
@@ -1799,7 +1794,7 @@ else:
                 tgt_selection = st.selectbox(
                     "➡️ 4. टारगेट कॉलम (Target Column):",
                     options=right_available_cols,
-                    key="p5_right_col_select"
+                    key="p11_right_col_select"
                 )
             
             # फाइनल सबमिशन बटन
@@ -1835,11 +1830,181 @@ else:
                         st.error("💥 मैपिंग सफलतापूर्वक हटा दी गई है!")
                         st.rerun()
 
+        # ----------------------------------------------------------------------
+        # P12: DASH BOARD EDITER MODULE (Pre-Login & Notice Customizer Combined)
+        # ----------------------------------------------------------------------
+        elif current_panel_id == "P12":
+            st.header(f"📚 {get_panel_title('P12')} (Subject + Year wise Syllabus Upload / Link Manager)")
+
+            st.markdown(
+                '<div style="background-color: #fcf8e3; border-left: 5px solid #f0ad4e; padding: 12px; border-radius: 4px; margin-bottom: 20px;">'
+                '📌 <b>निर्देश:</b> डेटाबेस में मौजूद हर <b>Subject</b> के लिए, हर <b>Year</b> (1st Year, 2nd Year...) के हिसाब से अलग-अलग '
+                '<b>Syllabus File अपलोड</b> कर सकते हैं या उसका <b>Link (URL)</b> दे सकते हैं। यही Syllabus होम पेज (Desk Board) पर '
+                'बिना लॉगिन किए भी छात्रों को दिखेगा — वो अपना Subject और Year चुनकर सीधे Syllabus पा सकेंगे। '
+                '(नोट: Notice Board और Header/Branding Settings अब <b>Panel Admin (P15)</b> से मैनेज होती हैं।)'
+                '</div>',
+                unsafe_allow_html=True
+            )
+
+            p12_can_edit = role in ("full_admin", "p12_role")
+            if not p12_can_edit:
+                st.warning("🔒 **रीड-ओनली मोड:** आपके पास यहाँ Syllabus अपलोड/एडिट करने का अधिकार नहीं है — आप सिर्फ मौजूदा Syllabus देख/डाउनलोड कर सकते हैं।")
+
+            p12_live_db = load_live_data()
+            p12_subject_list = []
+            if "Subject" in p12_live_db.columns:
+                p12_subject_list = sorted([
+                    s for s in p12_live_db["Subject"].dropna().astype(str).str.strip().unique()
+                    if s and s.lower() != "nan"
+                ])
+
+            if not p12_subject_list:
+                st.info("ℹ️ अभी तक डेटाबेस में कोई Subject उपलब्ध नहीं है। पहले P1 (Data Onboarding) से Students जोड़ें — उनके Subjects यहाँ अपने-आप दिखने लगेंगे।")
+            else:
+                # 🟢 Data structure ab nested hai: { Subject: { Year: {"type","value","file_name"} } }
+                p12_syllabus_data = load_syllabus_data()
+                st.caption(f"📚 कुल **{len(p12_subject_list)}** Subjects मिले — हर Subject के अंदर अब **Year-wise** Syllabus सेट कर सकते हैं।")
+
+                for p12_subj in p12_subject_list:
+                    p12_safe_subj_key = _re_notice_link.sub(r'[^A-Za-z0-9_-]+', '_', p12_subj)
+                    p12_subj_years = p12_syllabus_data.get(p12_subj, {})
+                    # 🟢 FIX: fixed 6 Years ki jagah ab is Subject ki asli Duration ke
+                    # hisaab se hi Years ki list banti hai (jaise 3 saal ka course ho to
+                    # sirf 3 Years hi dikhenge)
+                    p12_yr_count = get_subject_syllabus_year_count(p12_subj, p12_live_db)
+
+                    # 🟢 नया: PG कोर्सेज़ (जैसे 2 Year का कोर्स) के लिए अब Year-wise की जगह
+                    # Semester-wise भी Syllabus सेट किया जा सकता है — 2 Year = 4 Semester,
+                    # 3 Year = 6 Semester वगैरह। हर Subject अपनी चुनी हुई Mode याद रखता है
+                    # (डेटा फ़ाइल में "__mode__" key में सेव होती है), ताकि दोबारा खोलने पर
+                    # सही Mode (Year / Semester) अपने आप दिखे।
+                    p12_saved_mode = p12_subj_years.get("__mode__", "year")
+                    p12_mode_options = ["📅 Year-wise", "📆 Semester-wise (PG)"]
+                    p12_mode_default_idx = 1 if p12_saved_mode == "semester" else 0
+                    p12_chosen_mode_raw = st.radio(
+                        f"**{p12_subj}** — Syllabus किस हिसाब से सेट करें?",
+                        options=p12_mode_options,
+                        index=p12_mode_default_idx,
+                        key=f"p12_period_mode_{p12_safe_subj_key}",
+                        horizontal=True,
+                        disabled=not p12_can_edit
+                    )
+                    p12_chosen_mode = "semester" if p12_chosen_mode_raw == p12_mode_options[1] else "year"
+                    if p12_can_edit and p12_chosen_mode != p12_saved_mode:
+                        p12_subj_years["__mode__"] = p12_chosen_mode
+                        p12_syllabus_data[p12_subj] = p12_subj_years
+                        save_syllabus_data(p12_syllabus_data)
+
+                    if p12_chosen_mode == "semester":
+                        # PG जैसे कोर्स: N Year = N × 2 Semester (ज़्यादा से ज़्यादा 12 Semester)
+                        p12_sem_count = min(p12_yr_count * 2, len(SYLLABUS_SEM_OPTIONS))
+                        p12_years_for_subject = SYLLABUS_SEM_OPTIONS[:p12_sem_count]
+                        p12_period_word = "Semester"
+                    else:
+                        p12_years_for_subject = SYLLABUS_YEAR_OPTIONS[:p12_yr_count]
+                        p12_period_word = "Year"
+
+                    p12_years_done = sum(1 for _y in p12_years_for_subject if _y in p12_subj_years)
+                    with st.expander(f"📘 {p12_subj}  —  ({p12_years_done}/{len(p12_years_for_subject)} {p12_period_word} की Syllabus सेट है)", expanded=False):
+
+                        # --- मौजूदा सभी Year/Semester का status एक साथ दिखाएँ ---
+                        for p12_yr in p12_years_for_subject:
+                            p12_yr_existing = p12_subj_years.get(p12_yr, {})
+                            p12_yr_safe_key = f"{p12_safe_subj_key}__{_re_notice_link.sub(r'[^A-Za-z0-9_-]+', '_', p12_yr)}"
+                            st.markdown(f"**🗓️ {p12_yr}**")
+                            p12_status_col, p12_action_col = st.columns([3, 2])
+
+                            with p12_status_col:
+                                if p12_yr_existing.get("type") == "file" and p12_yr_existing.get("value") and os.path.exists(p12_yr_existing["value"]):
+                                    st.success(f"✅ फ़ाइल मौजूद: **{p12_yr_existing.get('file_name', os.path.basename(p12_yr_existing['value']))}**")
+                                elif p12_yr_existing.get("type") == "link" and p12_yr_existing.get("value"):
+                                    st.success("✅ Link मौजूद है:")
+                                    st.markdown(f"🔗 [Syllabus खोलें (नए टैब में)]({p12_yr_existing['value']})")
+                                else:
+                                    st.info("अभी तक कोई Syllabus नहीं जोड़ा गया।")
+
+                            with p12_action_col:
+                                if p12_yr_existing.get("type") == "file" and p12_yr_existing.get("value") and os.path.exists(p12_yr_existing["value"]):
+                                    try:
+                                        with open(p12_yr_existing["value"], "rb") as p12_fh:
+                                            st.download_button(
+                                                "⬇️ Download",
+                                                data=p12_fh.read(),
+                                                file_name=p12_yr_existing.get("file_name", os.path.basename(p12_yr_existing["value"])),
+                                                key=f"p12_dl_{p12_yr_safe_key}",
+                                                use_container_width=True
+                                            )
+                                    except Exception:
+                                        st.error("⚠️ फ़ाइल पढ़ने में समस्या।")
+                                if p12_can_edit and p12_yr_existing:
+                                    if st.button("🗑️ हटाएँ", key=f"p12_remove_{p12_yr_safe_key}", use_container_width=True):
+                                        if p12_yr_existing.get("type") == "file" and p12_yr_existing.get("value") and os.path.exists(p12_yr_existing["value"]):
+                                            try:
+                                                os.remove(p12_yr_existing["value"])
+                                            except Exception:
+                                                pass
+                                        del p12_subj_years[p12_yr]
+                                        p12_syllabus_data[p12_subj] = p12_subj_years
+                                        save_syllabus_data(p12_syllabus_data)
+                                        st.success(f"🗑️ {p12_subj} — {p12_yr} का Syllabus हटा दिया गया।")
+                                        st.rerun()
+
+                            if p12_can_edit:
+                                p12_mode = st.radio(
+                                    f"{p12_yr} के लिए Syllabus कैसे जोड़ें/बदलें?",
+                                    ["📎 File Upload", "🔗 Link (URL)"],
+                                    key=f"p12_mode_{p12_yr_safe_key}",
+                                    horizontal=True,
+                                    label_visibility="collapsed"
+                                )
+                                if p12_mode == "📎 File Upload":
+                                    p12_up_file = st.file_uploader(
+                                        f"{p12_yr} — Syllabus File चुनें (PDF/DOC/DOCX/Image):",
+                                        type=["pdf", "doc", "docx", "png", "jpg", "jpeg"],
+                                        key=f"p12_upl_{p12_yr_safe_key}",
+                                        label_visibility="collapsed"
+                                    )
+                                    if st.button(f"💾 {p12_yr} — File Save करें", key=f"p12_savefile_{p12_yr_safe_key}", use_container_width=True):
+                                        if p12_up_file is not None:
+                                            os.makedirs(SYLLABUS_UPLOAD_DIR, exist_ok=True)
+                                            p12_ext = os.path.splitext(p12_up_file.name)[1] or ".pdf"
+                                            p12_save_path = os.path.join(SYLLABUS_UPLOAD_DIR, f"{p12_yr_safe_key}{p12_ext}")
+                                            with open(p12_save_path, "wb") as p12_fo:
+                                                p12_fo.write(p12_up_file.getvalue())
+                                            p12_subj_years[p12_yr] = {
+                                                "type": "file", "value": p12_save_path, "file_name": p12_up_file.name
+                                            }
+                                            p12_syllabus_data[p12_subj] = p12_subj_years
+                                            save_syllabus_data(p12_syllabus_data)
+                                            st.success(f"🎉 {p12_subj} — {p12_yr} के लिए Syllabus फ़ाइल सेव हो गई!")
+                                            st.rerun()
+                                        else:
+                                            st.warning("⚠️ पहले कोई फ़ाइल चुनें, फिर Save करें।")
+                                else:
+                                    p12_default_link = p12_yr_existing.get("value", "") if p12_yr_existing.get("type") == "link" else ""
+                                    p12_link_val = st.text_input(
+                                        f"{p12_yr} — Syllabus Link (URL) डालें:",
+                                        value=p12_default_link,
+                                        key=f"p12_link_{p12_yr_safe_key}",
+                                        placeholder="https://...",
+                                        label_visibility="collapsed"
+                                    )
+                                    if st.button(f"💾 {p12_yr} — Link Save करें", key=f"p12_savelink_{p12_yr_safe_key}", use_container_width=True):
+                                        if p12_link_val.strip():
+                                            p12_subj_years[p12_yr] = {"type": "link", "value": p12_link_val.strip(), "file_name": ""}
+                                            p12_syllabus_data[p12_subj] = p12_subj_years
+                                            save_syllabus_data(p12_syllabus_data)
+                                            st.success(f"🎉 {p12_subj} — {p12_yr} के लिए Syllabus Link सेव हो गया!")
+                                            st.rerun()
+                                        else:
+                                            st.warning("⚠️ Link खाली नहीं छोड़ सकते।")
+                            st.markdown("---")
+
         # ======================================================================
-        # P6: 🔀 MERGE & APPROVE PANEL (Complete Integrated Routing System)
+        # P13: 🔀 MERGE & APPROVE PANEL (Complete Integrated Routing System)
         # ======================================================================
-        elif current_panel_id == "P6":
-            st.header(f"🔀 {get_panel_title('P6')} (Live Multi-Column Merge Verification & Routing Room)")
+        elif current_panel_id == "P13":
+            st.header(f"🔀 {get_panel_title('P13')} (Live Multi-Column Merge Verification & Routing Room)")
             
             # Load the staging verification queue and main central repository
             stage_db = load_stage_data()
@@ -1862,13 +2027,13 @@ else:
                 st.subheader("👑 Step 1: Select Main File Panel")
                 panel_options_map = {
                     "Panel 2: Admission View": "P2",
-                    "Panel 6: Scholarship View": "P3", "Panel 7: CCE panel View": "P4"
+                    "Panel 6: Scholarship View": "P6", "Panel 7: CCE panel View": "P7"
                 }
                 
                 selected_main_panel_lbl = st.selectbox(
                     "निरीक्षण और अपडेट करने के लिए मुख्य पैनल (Main File Source) चुनें:",
                     options=list(panel_options_map.keys()),
-                    key="p6_main_panel_dropdown_v15"
+                    key="p13_main_panel_dropdown_v15"
                 )
                 target_main_panel_id = panel_options_map[selected_main_panel_lbl]
                 
@@ -1892,7 +2057,7 @@ else:
                 selected_anya_file = st.selectbox(
                     "स्टेजिंग कतार से वह नई फ़ाइल चुनें जिससे डेटा खींचना है (या सीधे अप्रूव करने के लिए छोड़ें):", 
                     options=["-- कोई अन्य फ़ाइल नहीं चुनें --"] + distinct_files,
-                    key="p6_anya_file_select_v15"
+                    key="p13_anya_file_select_v15"
                 )
 
                 # ----------------------------------------------------------------------
@@ -1919,20 +2084,20 @@ else:
                                     "P3 : Unique ID panel",
                                     "P4 : Roll No. panel",
                                     "P5 : Enrollment panel",
-                                    "P3 : Scholarship panel",
-                                    "P4 : CCE panel",
+                                    "P6 : Scholarship panel",
+                                    "P7 : CCE panel",
                                     "P8 : Promotion panel",
                                     "P9 : Result panel",
                                     "P10 : Register panel"
                                 ],
-                                key="p6_direct_panel_routing_dropdown_v15"
+                                key="p13_direct_panel_routing_dropdown_v15"
                             )
                             parsed_direct_panel_id = direct_routing_panel.split(" : ")[0].strip()
                             
                         with col_dir2:
                             st.write("")
                             st.write("")
-                            direct_approve_btn = st.button("🚀 सीधे अप्रूव करें (Direct Approve & Sync)", type="primary", use_container_width=True, key="p6_direct_approve_btn_v15")
+                            direct_approve_btn = st.button("🚀 सीधे अप्रूव करें (Direct Approve & Sync)", type="primary", use_container_width=True, key="p13_direct_approve_btn_v15")
                         
                         with st.expander("⚠️ डेंजर ज़ोन: इस फ़ाइल को स्टेजिंग से हटाएं (बिना अप्रूव किए)", expanded=False):
                             confirm_delete_dir = st.checkbox("हाँ, मैं इस फ़ाइल को पूरी तरह कतार से हटाना चाहता हूँ।", key="confirm_delete_dir_key_v15")
@@ -2087,20 +2252,20 @@ else:
                                             "P3 : Unique ID panel",
                                             "P4 : Roll No. panel",
                                             "P5 : Enrollment panel",
-                                            "P3 : Scholarship panel",
-                                            "P4 : CCE panel",
+                                            "P6 : Scholarship panel",
+                                            "P7 : CCE panel",
                                             "P8 : Promotion panel",
                                             "P9 : Result panel",
                                             "P10 : Register panel"
                                         ],
-                                        key="p6_target_panel_routing_dropdown_v15"
+                                        key="p13_target_panel_routing_dropdown_v15"
                                     )
                                     parsed_panel_id = target_routing_panel.split(" : ")[0].strip()
                                     
                                 with col_app2:
                                     st.write("")
                                     st.write("")
-                                    approve_action_btn = st.button("🚀 Approve & Update Selected Data Rows", type="primary", use_container_width=True, key="p6_final_approve_btn_v15")
+                                    approve_action_btn = st.button("🚀 Approve & Update Selected Data Rows", type="primary", use_container_width=True, key="p13_final_approve_btn_v15")
                                 
                                 if approve_action_btn:
                                     try:
@@ -2195,125 +2360,28 @@ else:
                             st.info("💡 कृपया प्रीव्यू और अपडेट इंजन को सक्रिय करने के लिए Step 3 से कम से कम एक रिटर्न कॉलम ज़रूर चुनें।")
 
         # ----------------------------------------------------------------------
-        # P7: MULTI-PANEL INSPECTION WINDOW
+        # P15: PANEL ADMIN (SUPREME ENGINE & NOTICE BOARD MANAGER)
         # ----------------------------------------------------------------------
-        elif current_panel_id == "P7":
-            st.header(f"👁️ {get_panel_title('P7')} (Multi-Panel Inspection Window)")
-
-            # Standardized 22 core fields mapping per target layout configuration
-            all_22_columns = [
-                "Admission Application Number", "Roll No.", "Enrollment No.", "Student Name", "Father Name", 
-                "Admission Year", "Admission Session", "Eligibility Name", "Admission Date", "Unique ID", 
-                "Application Enrollment No.", "Mother Name", "Date of Birth", "Category", "Subject", 
-                "Duration", "Mobile Number", "Email ID", "Address", "Status", "Current Year", "Payment Date"
-            ]
-
-            # Structural column profiles customized per workspace panel selection (only available panels)
-            panel_options_list = {
-                "Panel 2: Admission View": all_22_columns,
-                "Panel 6: Scholarship View": ["Admission Application Number", "Unique ID", "Student Name", "Category", "Scholarship Name", "Scholarship Status"],
-                "Panel 7: CCE panel View": all_22_columns
-            }
-
-            st.subheader("📂 Select Panel Dashboard View")
-            selected_panel_view = st.selectbox(
-                "निरीक्षण करने के लिए पैनल सूची चुनें (Select Dashboard to Inspect):",
-                options=list(panel_options_list.keys()),
-                key="p7_panel_selector_dropdown_secure_v15"
-            )
-
-            # Map selection labels to their exact database target visibility tracking tags
-            panel_id_map = {
-                "Panel 2: Admission View": "P2",
-                "Panel 6: Scholarship View": "P3", "Panel 7: CCE panel View": "P4"
-            }
-            target_panel_id = panel_id_map[selected_panel_view]
-            target_columns = panel_options_list[selected_panel_view]
-
-            # 🔍 Isolated Firewall Query Rule: Filter centralized records matching visibility tokens
-            view_filtered_db = live_db[live_db["Target Panel Visibility"] == target_panel_id].copy()
-
-            # Normalization translator dictionary to prevent cell mismatches or blank structures
-            column_mapping_fixes = {
-                "Unique Id": "Unique ID", "Student Abc Id": "Unique ID", 
-                "Date Of Birth": "Date of Birth", "Duretion": "Duration", 
-                "Email Id": "Email ID", "Year": "Current Year",
-                "Application Number": "Admission Application Number",
-                "Enrollment No": "Enrollment No."
-            }
-            view_filtered_db = view_filtered_db.rename(columns=column_mapping_fixes)
-            if "Application Number" in view_filtered_db.columns and "Admission Application Number" not in view_filtered_db.columns:
-                view_filtered_db["Admission Application Number"] = view_filtered_db["Application Number"]
-
-            # Populate any structural column keys missing from memory
-            for c_col in target_columns:
-                if c_col not in view_filtered_db.columns:
-                    view_filtered_db[c_col] = ""
-
-            st.markdown(f"### 📋 {selected_panel_view} - Isolated Inspection Records")
-            
-            col_search1, col_search2 = st.columns(2)
-            with col_search1:
-                search_target_col = st.selectbox("खोजने के लिए फ़ील्ड चुनें:", options=target_columns, key="p7_search_col_target_secure_v15")
-            with col_search2:
-                search_query_text = st.text_input(f"'{search_target_col}' में प्रविष्टि खोजें:", key="p7_query_val_text_secure_v15").strip()
-
-            if search_query_text != "":
-                # 🟢 डुप्लिकेट कॉलम एरर फिक्स इंजन
-                col_data = view_filtered_db[search_target_col]
-                search_series = col_data.iloc[:, 0] if isinstance(col_data, pd.DataFrame) else col_data
-                
-                view_filtered_db = view_filtered_db[
-                    search_series.astype(str).str.contains(search_query_text, case=False, na=False)
-                ]
-
-            st.write(f"वर्तमान ग्रिड में कुल उपलब्ध स्वीकृत छात्र रिकॉर्ड संख्या: **{len(view_filtered_db)}**")
-
-            final_render_cols = [col for col in target_columns if col in view_filtered_db.columns]
-            
-            if not view_filtered_db.empty:
-                display_ready_df = view_filtered_db[final_render_cols].copy()
-                display_ready_df.insert(0, "S. No.", range(1, len(display_ready_df) + 1))
-            
-                # 🟢 एरर फिक्स: डुप्लिकेट कॉलम को डिलीट करने के लिए यह लाइन यहाँ जोड़ें
-                display_ready_df = display_ready_df.loc[:, ~display_ready_df.columns.duplicated()].copy()
-            
-                st.dataframe(display_ready_df, use_container_width=True, hide_index=True)
-                
-                st.download_button(
-                    label=f"📥 Download Selected Dashboard Report Snapshot (CSV)",
-                    data=view_filtered_db[final_render_cols].to_csv(index=False).encode('utf-8'),
-                    file_name=f"{selected_panel_view.replace(':', '').replace(' ', '_').lower()}_snapshot.csv",
-                    mime="text/csv",
-                    use_container_width=True,
-                    key="p7_download_compiled_report_btn_secure_v15"
-                )
-            else:
-                st.warning("🔍 निर्दिष्ट खोज प्रविष्टि या स्वीकृत पैनल विज़िबिलिटी के आधार पर कोई रिकॉर्ड नहीं मिला।")
-
-        # ----------------------------------------------------------------------
-        # P8: PANEL ADMIN (SUPREME ENGINE & NOTICE BOARD MANAGER)
-        # ----------------------------------------------------------------------
-        elif current_panel_id == "P8":
-            st.header(f"🛠️ {get_panel_title('P8')} (Full Super-Admin Control Command)")
+        elif current_panel_id == "P15":
+            st.header(f"🛠️ {get_panel_title('P15')} (Full Super-Admin Control Command)")
             
             # 📢 Live Notice Board Manager Panel Area
             hdr_c1_p15_show_notice_board, hdr_c2_p15_show_notice_board = st.columns([6, 1])
             with hdr_c1_p15_show_notice_board:
                 st.subheader("📢 Live Notice Board Manager")
             with hdr_c2_p15_show_notice_board:
-                if st.button("🙈 Hide" if st.session_state.get("p8_show_notice_board", True) else "👁️ Unhide", key="p8_show_notice_board_toggle_btn", use_container_width=True):
-                    st.session_state["p8_show_notice_board"] = not st.session_state.get("p8_show_notice_board", True)
+                if st.button("🙈 Hide" if st.session_state.get("p15_show_notice_board", True) else "👁️ Unhide", key="p15_show_notice_board_toggle_btn", use_container_width=True):
+                    st.session_state["p15_show_notice_board"] = not st.session_state.get("p15_show_notice_board", True)
                     st.rerun()
 
-            if st.session_state.get("p8_show_notice_board", True):
+            if st.session_state.get("p15_show_notice_board", True):
                 with st.expander("कॉलेज सूचना पटल (Official Notice Board) की गाइडलाइंस एडिट करें", expanded=True):
-                    with st.form(key="p8_global_notice_form_final_secure"):
+                    with st.form(key="p15_global_notice_form_final_secure"):
                         updated_notice_input = st.text_area(
                             "सूचना पटल की पंक्तियाँ लिखें (प्रत्येक नई लाइन मुख्य पेज पर एक नया पॉइंट बनेगी):",
                             value=st.session_state.notice_text,
                             height=150,
-                            key="p8_notice_text_area_input_final_secure"
+                            key="p15_notice_text_area_input_final_secure"
                         )
                         if st.form_submit_button("Publish & Save Notice Board Permanently", type="primary", use_container_width=True):
                             st.session_state.notice_text = updated_notice_input
@@ -2328,12 +2396,12 @@ else:
             with hdr_c1_p15_show_header_branding:
                 st.subheader("🖼️ Header Elements & Branding Themes")
             with hdr_c2_p15_show_header_branding:
-                if st.button("🙈 Hide" if st.session_state.get("p8_show_header_branding", True) else "👁️ Unhide", key="p8_show_header_branding_toggle_btn", use_container_width=True):
-                    st.session_state["p8_show_header_branding"] = not st.session_state.get("p8_show_header_branding", True)
+                if st.button("🙈 Hide" if st.session_state.get("p15_show_header_branding", True) else "👁️ Unhide", key="p15_show_header_branding_toggle_btn", use_container_width=True):
+                    st.session_state["p15_show_header_branding"] = not st.session_state.get("p15_show_header_branding", True)
                     st.rerun()
 
-            if st.session_state.get("p8_show_header_branding", True):
-                with st.form(key="p8_landing_view_editor_form_secure"):
+            if st.session_state.get("p15_show_header_branding", True):
+                with st.form(key="p15_landing_view_editor_form_secure"):
                     col_view1, col_view2 = st.columns(2)
                     with col_view1:
                         header_toggle = st.checkbox(
@@ -2357,14 +2425,14 @@ else:
                             "Spiritual Invocation / Mantra — Font Size (px):",
                             min_value=10, max_value=60,
                             value=int(st.session_state.pre_login_config.get("header_mantra_font_size", 24)),
-                            key="p8_mantra_font_size_slider"
+                            key="p15_mantra_font_size_slider"
                         )
                     with col_font2:
                         title_font_size = st.slider(
                             "Main Gateway Application Title — Font Size (px):",
                             min_value=10, max_value=80,
                             value=int(st.session_state.pre_login_config.get("header_title_font_size", 32)),
-                            key="p8_title_font_size_slider"
+                            key="p15_title_font_size_slider"
                         )
 
                     st.markdown("##### Notice Board Branding Colors")
@@ -2404,11 +2472,11 @@ else:
             with hdr_c1_p15_show_logo_upload:
                 st.subheader("🖼️ लोगो अपलोड, साइज़ और फिट मोड कंट्रोल")
             with hdr_c2_p15_show_logo_upload:
-                if st.button("🙈 Hide" if st.session_state.get("p8_show_logo_upload", True) else "👁️ Unhide", key="p8_show_logo_upload_toggle_btn", use_container_width=True):
-                    st.session_state["p8_show_logo_upload"] = not st.session_state.get("p8_show_logo_upload", True)
+                if st.button("🙈 Hide" if st.session_state.get("p15_show_logo_upload", True) else "👁️ Unhide", key="p15_show_logo_upload_toggle_btn", use_container_width=True):
+                    st.session_state["p15_show_logo_upload"] = not st.session_state.get("p15_show_logo_upload", True)
                     st.rerun()
 
-            if st.session_state.get("p8_show_logo_upload", True):
+            if st.session_state.get("p15_show_logo_upload", True):
                 st.caption("यहाँ से नया लोगो अपलोड करें, उसकी Width/Height अलग-अलग सेट करें और Fit Mode चुनें — Live Preview में सेव करने से पहले ही देख सकते हैं कि लोगो कैसा दिखेगा।")
 
                 current_logo_path = st.session_state.pre_login_config.get("logo_path", "logo pratap.png")
@@ -2419,14 +2487,14 @@ else:
                 new_logo_file = st.file_uploader(
                     "नया लोगो अपलोड करें (PNG/JPG) — खाली छोड़ने पर मौजूदा लोगो बना रहेगा:",
                     type=["png", "jpg", "jpeg"],
-                    key="p8_logo_uploader_v1"
+                    key="p15_logo_uploader_v1"
                 )
 
                 col_logo1, col_logo2, col_logo3 = st.columns(3)
                 with col_logo1:
-                    logo_width_input = st.slider("↔️ Logo Width (px)", min_value=30, max_value=400, value=current_logo_w, key="p8_logo_width_slider_v1")
+                    logo_width_input = st.slider("↔️ Logo Width (px)", min_value=30, max_value=400, value=current_logo_w, key="p15_logo_width_slider_v1")
                 with col_logo2:
-                    logo_height_input = st.slider("↕️ Logo Height (px)", min_value=30, max_value=400, value=current_logo_h, key="p8_logo_height_slider_v1")
+                    logo_height_input = st.slider("↕️ Logo Height (px)", min_value=30, max_value=400, value=current_logo_h, key="p15_logo_height_slider_v1")
                 with col_logo3:
                     fit_options = ["contain", "cover"]
                     fit_index = fit_options.index(current_logo_fit) if current_logo_fit in fit_options else 0
@@ -2435,7 +2503,7 @@ else:
                         options=fit_options,
                         index=fit_index,
                         format_func=lambda x: "contain (पूरी image दिखेगी, कटेगी नहीं)" if x == "contain" else "cover (box भरेगा, extra हिस्सा crop हो सकता है)",
-                        key="p8_logo_fit_selector_v1"
+                        key="p15_logo_fit_selector_v1"
                     )
 
                 preview_img_base64 = ""
@@ -2459,7 +2527,7 @@ else:
                 else:
                     st.info("ℹ️ अभी कोई लोगो उपलब्ध नहीं है — प्रीव्यू देखने के लिए एक लोगो अपलोड करें।")
 
-                if st.button("📏 साइज़ & फिट सेव करें", type="primary", use_container_width=True, key="p8_logo_save_btn_v1"):
+                if st.button("📏 साइज़ & फिट सेव करें", type="primary", use_container_width=True, key="p15_logo_save_btn_v1"):
                     saved_path = current_logo_path
                     if new_logo_file is not None:
                         ext = os.path.splitext(new_logo_file.name)[1] or ".png"
@@ -2483,23 +2551,23 @@ else:
             with hdr_c1_p15_show_panel_names:
                 st.subheader("✏️ Dynamic 8 Panels Name & Label Customizer")
             with hdr_c2_p15_show_panel_names:
-                if st.button("🙈 Hide" if st.session_state.get("p8_show_panel_names", True) else "👁️ Unhide", key="p8_show_panel_names_toggle_btn", use_container_width=True):
-                    st.session_state["p8_show_panel_names"] = not st.session_state.get("p8_show_panel_names", True)
+                if st.button("🙈 Hide" if st.session_state.get("p15_show_panel_names", True) else "👁️ Unhide", key="p15_show_panel_names_toggle_btn", use_container_width=True):
+                    st.session_state["p15_show_panel_names"] = not st.session_state.get("p15_show_panel_names", True)
                     st.rerun()
 
-            if st.session_state.get("p8_show_panel_names", True):
+            if st.session_state.get("p15_show_panel_names", True):
                 with st.expander("8 पैनल्स के नाम (App Titles) एडिट करने के लिए यहाँ क्लिक करें", expanded=False):
-                    with st.form(key="p8_panel_rename_matrix_form_final_secure"):
+                    with st.form(key="p15_panel_rename_matrix_form_final_secure"):
                         p_setup1, p_setup2 = st.columns(2)
                         temp_panel_mappings = {}
                         for idx, p_key in enumerate(DEFAULT_PANELS.keys()):
                             current_panel_name = st.session_state.panel_names.get(p_key, DEFAULT_PANELS[p_key])
                             if idx % 2 == 0:
                                 with p_setup1: 
-                                    temp_panel_mappings[p_key] = st.text_input(f"Name for {p_key}:", value=current_panel_name, key=f"p8_ren_final_{p_key}")
+                                    temp_panel_mappings[p_key] = st.text_input(f"Name for {p_key}:", value=current_panel_name, key=f"p15_ren_final_{p_key}")
                             else:
                                 with p_setup2: 
-                                    temp_panel_mappings[p_key] = st.text_input(f"Name for {p_key}:", value=current_panel_name, key=f"p8_ren_final_{p_key}")
+                                    temp_panel_mappings[p_key] = st.text_input(f"Name for {p_key}:", value=current_panel_name, key=f"p15_ren_final_{p_key}")
                         
                         if st.form_submit_button("Save All 8 Panel Titles Permanently", type="primary", use_container_width=True):
                             st.session_state.panel_names = temp_panel_mappings
@@ -2512,18 +2580,18 @@ else:
             with hdr_c1_p15_show_panel_visibility:
                 st.subheader("🛡️ Global 8 Panels Visibility Toggle Switch Board")
             with hdr_c2_p15_show_panel_visibility:
-                if st.button("🙈 Hide" if st.session_state.get("p8_show_panel_visibility", True) else "👁️ Unhide", key="p8_show_panel_visibility_toggle_btn", use_container_width=True):
-                    st.session_state["p8_show_panel_visibility"] = not st.session_state.get("p8_show_panel_visibility", True)
+                if st.button("🙈 Hide" if st.session_state.get("p15_show_panel_visibility", True) else "👁️ Unhide", key="p15_show_panel_visibility_toggle_btn", use_container_width=True):
+                    st.session_state["p15_show_panel_visibility"] = not st.session_state.get("p15_show_panel_visibility", True)
                     st.rerun()
 
-            if st.session_state.get("p8_show_panel_visibility", True):
+            if st.session_state.get("p15_show_panel_visibility", True):
                 # Visibility Panel Controllers Layer for the 8 active panels only
-                active_panel_keys = ["P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8"]
+                active_panel_keys = ["P1", "P2", "P6", "P7", "P11", "P12", "P13", "P15"]
                 vis_cols = st.columns(len(active_panel_keys))
                 for i, p_key in enumerate(active_panel_keys):
                     with vis_cols[i]:
                         status_lbl = "🙈 Hidden" if st.session_state.get(f"hide_panel_{p_key}", False) else "👀 Active"
-                        if st.button(f"{p_key}\n({status_lbl})", use_container_width=True, key=f"p8_btn_v_final_{p_key}"):
+                        if st.button(f"{p_key}\n({status_lbl})", use_container_width=True, key=f"p15_btn_v_final_{p_key}"):
                             st.session_state[f"hide_panel_{p_key}"] = not st.session_state.get(f"hide_panel_{p_key}", False)
                             st.rerun()
 
@@ -2533,25 +2601,25 @@ else:
             with hdr_c1_p15_show_dropdown_customizer:
                 st.subheader("⚙️ Super-Admin Master Dropdown List Customizer")
             with hdr_c2_p15_show_dropdown_customizer:
-                if st.button("🙈 Hide" if st.session_state.get("p8_show_dropdown_customizer", True) else "👁️ Unhide", key="p8_show_dropdown_customizer_toggle_btn", use_container_width=True):
-                    st.session_state["p8_show_dropdown_customizer"] = not st.session_state.get("p8_show_dropdown_customizer", True)
+                if st.button("🙈 Hide" if st.session_state.get("p15_show_dropdown_customizer", True) else "👁️ Unhide", key="p15_show_dropdown_customizer_toggle_btn", use_container_width=True):
+                    st.session_state["p15_show_dropdown_customizer"] = not st.session_state.get("p15_show_dropdown_customizer", True)
                     st.rerun()
 
-            if st.session_state.get("p8_show_dropdown_customizer", True):
+            if st.session_state.get("p15_show_dropdown_customizer", True):
                 st.markdown("पैनल 1 (Data Onboarding) में दिखने वाली तीनों स्क्रॉल सूचियों के विकल्पों को यहाँ से लाइव कस्टमाइज़ करें:")
                 
                 col_drop1, col_drop2, col_drop3 = st.columns(3)
                 with col_drop1:
                     st.markdown("##### 📁 1. File Segments / Types")
-                    edited_file_types = st.text_area("File Types (एक प्रति लाइन):", value="\n".join(st.session_state.p1_dropdown_schemas["file_types"]), height=140, key="p8_custom_file_types_text")
+                    edited_file_types = st.text_area("File Types (एक प्रति लाइन):", value="\n".join(st.session_state.p1_dropdown_schemas["file_types"]), height=140, key="p15_custom_file_types_text")
                 with col_drop2:
                     st.markdown("##### 📆 2. Academic Years")
-                    edited_years = st.text_area("Admission Years (एक प्रति लाइन):", value="\n".join(st.session_state.p1_dropdown_schemas["academic_years"]), height=140, key="p8_custom_years_text")
+                    edited_years = st.text_area("Admission Years (एक प्रति लाइन):", value="\n".join(st.session_state.p1_dropdown_schemas["academic_years"]), height=140, key="p15_custom_years_text")
                 with col_drop3:
                     st.markdown("##### ⏳ 3. Academic Sessions")
-                    edited_sessions = st.text_area("Admission Sessions (एक प्रति line):", value="\n".join(st.session_state.p1_dropdown_schemas["academic_sessions"]), height=140, key="p8_custom_sessions_text")
+                    edited_sessions = st.text_area("Admission Sessions (एक प्रति line):", value="\n".join(st.session_state.p1_dropdown_schemas["academic_sessions"]), height=140, key="p15_custom_sessions_text")
                 
-                if st.button("💾 Apply & Update Master Dropdown Framework", type="primary", use_container_width=True, key="p8_save_dropdowns_btn"):
+                if st.button("💾 Apply & Update Master Dropdown Framework", type="primary", use_container_width=True, key="p15_save_dropdowns_btn"):
                     st.session_state.p1_dropdown_schemas["file_types"] = [line.strip() for line in edited_file_types.split("\n") if line.strip()]
                     st.session_state.p1_dropdown_schemas["academic_years"] = [line.strip() for line in edited_years.split("\n") if line.strip()]
                     st.session_state.p1_dropdown_schemas["academic_sessions"] = [line.strip() for line in edited_sessions.split("\n") if line.strip()]
@@ -2566,16 +2634,16 @@ else:
             with hdr_c1_p15_show_master_overwrite:
                 st.subheader("⚠️ Advanced Action: Dangerous Master File Overwrite Uploader (CSV / XLSX)")
             with hdr_c2_p15_show_master_overwrite:
-                if st.button("🙈 Hide" if st.session_state.get("p8_show_master_overwrite", True) else "👁️ Unhide", key="p8_show_master_overwrite_toggle_btn", use_container_width=True):
-                    st.session_state["p8_show_master_overwrite"] = not st.session_state.get("p8_show_master_overwrite", True)
+                if st.button("🙈 Hide" if st.session_state.get("p15_show_master_overwrite", True) else "👁️ Unhide", key="p15_show_master_overwrite_toggle_btn", use_container_width=True):
+                    st.session_state["p15_show_master_overwrite"] = not st.session_state.get("p15_show_master_overwrite", True)
                     st.rerun()
 
-            if st.session_state.get("p8_show_master_overwrite", True):
+            if st.session_state.get("p15_show_master_overwrite", True):
                 st.warning("यह एक अत्यंत संवेदनशील विकल्प है। यहाँ नई फ़ाइल अपलोड करने पर वर्तमान का पूरा लाइव डेटाबेस (`shared_student_database.csv`) स्थायी रूप से मिट जाएगा और नई फ़ाइल का डेटा नया मास्टर बन जाएगा।")
                 
                 # ऑटो-रीसेट ट्रिगर काउंटर स्टेट जो विजेट को रीबूट करेगा
-                if "p8_uploader_reset_counter" not in st.session_state:
-                    st.session_state.p8_uploader_reset_counter = 0
+                if "p15_uploader_reset_counter" not in st.session_state:
+                    st.session_state.p15_uploader_reset_counter = 0
 
                 with st.expander("🔑 सुरक्षित मास्टर फ़ाइल अपलोड गेटवे खोलें", expanded=False):
                     col_up_pass, col_up_file = st.columns(2)
@@ -2585,7 +2653,7 @@ else:
                         uploader_secure_password = st.text_input(
                             "🛡️ फ़ाइल अपलोडर स्पेशल पासवर्ड दर्ज करें:", 
                             type="password", 
-                            key=f"p8_master_pass_widget_run_{st.session_state.p8_uploader_reset_counter}"
+                            key=f"p15_master_pass_widget_run_{st.session_state.p15_uploader_reset_counter}"
                         )
                     
                     with col_up_file:
@@ -2594,7 +2662,7 @@ else:
                         uploaded_master_file = st.file_uploader(
                             "सिस्टम में ओवरराइट करने के लिए मास्टर फ़ाइल चुनें (CSV / XLSX / XLS):", 
                             type=["csv", "xlsx", "xls"],
-                            key=f"p8_master_file_widget_run_{st.session_state.p8_uploader_reset_counter}",
+                            key=f"p15_master_file_widget_run_{st.session_state.p15_uploader_reset_counter}",
                             disabled=not is_password_correct
                         )
                     
@@ -2608,7 +2676,7 @@ else:
                             
                             confirm_overwrite_checkbox = st.checkbox(
                                 "मैं प्रमाणित करता हूँ कि मैं पुराना मास्टर डेटा डिलीट करके इस नई फ़ाइल को लाइव डेटाबेस बनाना चाहता हूँ।",
-                                key=f"p8_master_chk_run_{st.session_state.p8_uploader_reset_counter}"
+                                key=f"p15_master_chk_run_{st.session_state.p15_uploader_reset_counter}"
                             )
                             
                             if st.button("💥 FORCE OVERWRITE COMPLETE MASTER DATABASE NOW", type="primary", use_container_width=True, disabled=not confirm_overwrite_checkbox):
@@ -2641,7 +2709,7 @@ else:
                                         save_live_data(finalized_uploaded_master)
                                         
                                         # 🔒 सुरक्षित रीसेट मैकेनिज्म: काउंटर बदलते ही विजेट फ्रेश रीबूट हो जाएगा और पुराना डेटा मिट जाएगा
-                                        st.session_state.p8_uploader_reset_counter += 1
+                                        st.session_state.p15_uploader_reset_counter += 1
                                         
                                         st.success(f"🎉 शत-प्रतिशत सफलता! `{uploaded_master_file.name}` को नया लाइव मास्टर डेटाबेस बना दिया गया है। गेटवे को सुरक्षित लॉक कर दिया गया है।")
                                         st.balloons()
@@ -2658,29 +2726,29 @@ else:
             with hdr_c1_p15_show_master_db_view:
                 st.subheader("📊 Master Database List View & Advanced Operational Controls")
             with hdr_c2_p15_show_master_db_view:
-                if st.button("🙈 Hide" if st.session_state.get("p8_show_master_db_view", True) else "👁️ Unhide", key="p8_show_master_db_view_toggle_btn", use_container_width=True):
-                    st.session_state["p8_show_master_db_view"] = not st.session_state.get("p8_show_master_db_view", True)
+                if st.button("🙈 Hide" if st.session_state.get("p15_show_master_db_view", True) else "👁️ Unhide", key="p15_show_master_db_view_toggle_btn", use_container_width=True):
+                    st.session_state["p15_show_master_db_view"] = not st.session_state.get("p15_show_master_db_view", True)
                     st.rerun()
 
-            if st.session_state.get("p8_show_master_db_view", True):
+            if st.session_state.get("p15_show_master_db_view", True):
                 
                 # Action Toggles Column Layout
                 col_ctrl1, col_ctrl2, col_ctrl3 = st.columns(3)
                 with col_ctrl3:
                     lock_label = "🔒 लिस्ट लॉक करें (Locked)" if st.session_state.admin_lock_state else "🔓 लिस्ट अनलॉक करें (Editable)"
-                    if st.button(lock_label, use_container_width=True, type="primary" if not st.session_state.admin_lock_state else "secondary", key="p8_lock_toggle_master_btn_final"):
+                    if st.button(lock_label, use_container_width=True, type="primary" if not st.session_state.admin_lock_state else "secondary", key="p15_lock_toggle_master_btn_final"):
                         st.session_state.admin_lock_state = not st.session_state.admin_lock_state
                         st.rerun()
 
                 with col_ctrl1:
                     lbl_edit = "👀 एडमिट टेक्स्ट FUNCTION: active" if st.session_state.admin_unhide_edit else "🙈 एडमिट टेक्स्ट FUNCTION: hidden"
-                    if st.button(lbl_edit, use_container_width=True, disabled=st.session_state.admin_lock_state, key="p8_edit_toggle_master_btn_final"):
+                    if st.button(lbl_edit, use_container_width=True, disabled=st.session_state.admin_lock_state, key="p15_edit_toggle_master_btn_final"):
                         st.session_state.admin_unhide_edit = not st.session_state.admin_unhide_edit
                         st.rerun()
 
                 with col_ctrl2:
                     lbl_move = "👀 कॉलम मूव बटन्स: active" if st.session_state.admin_unhide_move else "🙈 कॉलम मूव बटन्स: hidden"
-                    if st.button(lbl_move, use_container_width=True, key="p8_move_toggle_master_btn_final"):
+                    if st.button(lbl_move, use_container_width=True, key="p15_move_toggle_master_btn_final"):
                         st.session_state.admin_unhide_move = not st.session_state.admin_unhide_move
                         st.rerun()
 
@@ -2695,18 +2763,18 @@ else:
                         "मूव करने के लिए कॉलम चुनें:", 
                         options=st.session_state.admin_columns_order, 
                         disabled=st.session_state.admin_lock_state,
-                        key="p8_column_shifter_select_box_final"
+                        key="p15_column_shifter_select_box_final"
                     )
                     c_left, c_right = st.columns(2)
                     
                     # 🔒 सुरक्षा गेटवे: यदि लिस्ट लॉक है (admin_lock_state = True), तो बटन लॉक रहेंगे
-                    if c_left.button("⬅️ Shift Left", use_container_width=True, disabled=st.session_state.admin_lock_state, key="p8_shift_left_master_btn_final"):
+                    if c_left.button("⬅️ Shift Left", use_container_width=True, disabled=st.session_state.admin_lock_state, key="p15_shift_left_master_btn_final"):
                         idx = st.session_state.admin_columns_order.index(target_col)
                         if idx > 0:
                             st.session_state.admin_columns_order[idx], st.session_state.admin_columns_order[idx-1] = st.session_state.admin_columns_order[idx-1], st.session_state.admin_columns_order[idx]
                             st.rerun()
                             
-                    if c_right.button("➡️ Shift Right", use_container_width=True, disabled=st.session_state.admin_lock_state, key="p8_shift_right_master_btn_final"):
+                    if c_right.button("➡️ Shift Right", use_container_width=True, disabled=st.session_state.admin_lock_state, key="p15_shift_right_master_btn_final"):
                         idx = st.session_state.admin_columns_order.index(target_col)
                         if idx < len(st.session_state.admin_columns_order) - 1:
                             st.session_state.admin_columns_order[idx], st.session_state.admin_columns_order[idx+1] = st.session_state.admin_columns_order[idx+1], st.session_state.admin_columns_order[idx]
@@ -2750,7 +2818,7 @@ else:
                                 col_add_side, col_del_side = st.columns(2)
                                 with col_add_side:
                                     st.markdown("##### ➕ नया कॉलम जोड़ें (Add Column)")
-                                    new_col_input = st.text_input("नया कॉलम का सटीक नाम दर्ज करें:", key="p8_new_col_input_name").strip()
+                                    new_col_input = st.text_input("नया कॉलम का सटीक नाम दर्ज करें:", key="p15_new_col_input_name").strip()
                                     if st.button("🚀 Create Column Globally", type="primary", use_container_width=True):
                                         if new_col_input and new_col_input not in live_db.columns:
                                             live_db[new_col_input] = ""
@@ -2762,8 +2830,8 @@ else:
                                             
                                 with col_del_side:
                                     st.markdown("##### 🗑️ कॉलम हटाएं (Delete Column)")
-                                    col_to_delete = st.selectbox("हटाने के लिए कॉलम चुनें:", options=[c for c in live_db.columns if c != "Target Panel Visibility"], key="p8_col_to_delete_select")
-                                    confirm_col_del = st.checkbox("हाँ, मैं इस कॉलम का पूरा डेटा नष्ट करना चाहता हूँ।", key="p8_confirm_col_del_chk")
+                                    col_to_delete = st.selectbox("हटाने के लिए कॉलम चुनें:", options=[c for c in live_db.columns if c != "Target Panel Visibility"], key="p15_col_to_delete_select")
+                                    confirm_col_del = st.checkbox("हाँ, मैं इस कॉलम का पूरा डेटा नष्ट करना चाहता हूँ।", key="p15_confirm_col_del_chk")
                                     if st.button("🗑️ ERASE COLUMN PERMANENT PERMANENTLY", type="primary", use_container_width=True, disabled=not confirm_col_del):
                                         if col_to_delete in live_db.columns: live_db = live_db.drop(columns=[col_to_delete])
                                         if col_to_delete in DEFAULT_COLUMNS: DEFAULT_COLUMNS.remove(col_to_delete)
@@ -2801,10 +2869,10 @@ else:
                                 disabled=disabled_fields,
                                 hide_index=True,
                                 num_rows="dynamic",
-                                key="p8_supreme_master_live_editor_grid"
+                                key="p15_supreme_master_live_editor_grid"
                             )
                         
-                        if st.button("💾 Save Grid Changes to Master CSV File", type="primary", use_container_width=True, key="p8_save_master_csv_btn"):
+                        if st.button("💾 Save Grid Changes to Master CSV File", type="primary", use_container_width=True, key="p15_save_master_csv_btn"):
                             try:
                                 clean_edited_master = edited_master_db.drop(columns=["S.No."], errors="ignore")
                                 display_to_orig_map = {get_display_name(c): c for c in live_db.columns}
@@ -2838,7 +2906,7 @@ else:
                                 "🚀 Process Degree/Branch → Subject & Duration (All Rows)",
                                 type="primary",
                                 use_container_width=True,
-                                key="p8_degree_branch_subject_auto_btn"
+                                key="p15_degree_branch_subject_auto_btn"
                             ):
                                 try:
                                     processed_counter = 0
@@ -2953,13 +3021,13 @@ else:
                                             help="इस विषय के लिए कोर्स की कुल अवधि वर्षों में चुनें"
                                         )
                                     },
-                                    key="p8_bulk_subject_duration_editor_grid_final_clean",
+                                    key="p15_bulk_subject_duration_editor_grid_final_clean",
                                     hide_index=True
                                 )
                                 
                                 # 🚨 सुरक्षा गेटवे 2: सेव बटन केवल तभी दिखाई देगा जब लिस्ट अनलॉक होगी
                                 if not st.session_state.admin_lock_state:
-                                    if st.button("💾 Apply & Update Bulk Subject Durations", type="primary", use_container_width=True, key="p8_save_bulk_sub_duration_btn"):
+                                    if st.button("💾 Apply & Update Bulk Subject Durations", type="primary", use_container_width=True, key="p15_save_bulk_sub_duration_btn"):
                                         try:
                                             bulk_update_counter = 0
                                             bulk_skip_counter = 0
