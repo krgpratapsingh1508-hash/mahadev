@@ -105,7 +105,11 @@ DEFAULT_COLUMNS = [
     "Current Year", "Application Number", "Student Abc Id", "Gender", "Admission Category", "Degree",
     "Branch", "Minor Subjects", "Vocational Subjects", "MDC Subjects", "PW/Ap/CE Subjects",
     "Admssion & Enrollment Fees", "Scholarship Name", "Payment Date", "Target Panel Visibility",
-    "CCE Marks Obtained", "CCE Attendance Status", "Promotion Status", "Marks Obtained", "Result Status", "Exam Remarks"
+    "CCE Marks Obtained", "CCE Attendance Status", "Promotion Status", "Marks Obtained", "Result Status", "Exam Remarks",
+    # 🟢 P2 पैनल की पूरी कॉलम लिस्ट के लिए नए जोड़े गए फ़ील्ड्स (फ़िलहाल खाली रहेंगे,
+    # ज़रूरत अनुसार P1 एंट्री या एडमिन एडिट से भरे जा सकते हैं / बाद में अनुपयोगी होने पर हटाए जा सकते हैं)
+    "Merit (%)", "Obtain (%)", "Bonus (%)", "Weightage (%)", "Class", "Ncc Type",
+    "IsDisabled", "Final Status", "Subject Selection Status"
 ]
 
 # ==========================================================
@@ -1019,11 +1023,15 @@ else:
             else:
                 # 🟢 Fix: "Student Abc Id" ko galti se "Student Abc ld" (typo) mein rename kar diya jaata tha,
                 # jisse yeh column aage 'Student Abc Id' naam se dhoondhne par nahi milta tha aur khaali dikhta tha.
+                # 🟢 फिक्स: पहले यहाँ "Application Number" को "Admission Application Number" में
+                # rename कर दिया जाता था, जबकि दोनों DEFAULT_COLUMNS में अलग-अलग असली कॉलम हैं।
+                # इससे rename + duplicate-column-drop के दौरान असली "Application Number" का डेटा
+                # हमेशा के लिए खो जाता था और P2 में यह कॉलम खाली दिखता था। अब इसे हटा दिया गया है
+                # ताकि "Application Number" अपना असली डेटा बनाए रखे।
                 column_mapping_fixes = {
                     "Unique Id": "Unique ID",
                     "Date Of Birth": "Date of Birth", "Duretion": "Duration", 
-                    "Email Id": "Email ID", "Year": "Current Year",
-                    "Application Number": "Admission Application Number"
+                    "Email Id": "Email ID", "Year": "Current Year"
                 }
                 p2_authorized_db = p2_authorized_db.rename(columns=column_mapping_fixes)
                 p2_authorized_db = p2_authorized_db.loc[:, ~p2_authorized_db.columns.duplicated()].copy()
@@ -1206,12 +1214,15 @@ else:
                 # (जैसे "Date Of Birth" vs असली कॉलम "Date of Birth", "Email" vs "Email ID",
                 # "Enrollment No" vs "Enrollment No.") — इसी वजह से DOB, Email और Enrollment No
                 # हमेशा खाली दिखते थे। अब नाम बिल्कुल सही स्कीमा फॉर्मेट में फिक्स किए गए हैं।
+                # 🟢 P2 की पूरी column list (आपने जो सटीक 29 कॉलम बताए थे, वही यहाँ लगाए गए हैं —
+                # "SRNo" ऊपर अलग से हर हाल में S. No. के रूप में जुड़ता है इसलिए इस लिस्ट में नहीं है)
                 all_possible_p2_cols = [
-                    "Application Number", "Student Abc Id", "Student Name", "Father Name", "Mother Name",
-                    "Date of Birth", "Category", "Admission Category", "Subject", "Degree", "Branch",
-                    "Minor Subjects", "Vocational Subjects", "MDC Subjects", "PW/Ap/CE Subjects",
-                    "Mobile Number", "Email ID", "Address", "Enrollment No.", "Admssion & Enrollment Fees",
-                    "Scholarship Name", "Payment Date"
+                    "Student Name", "Gender", "Enrollment No.", "Father Name", "Mother Name", "Address",
+                    "Eligibility Name", "Degree", "Branch", "Minor Subjects", "Vocational Subjects",
+                    "MDC Subjects", "PW/Ap/CE Subjects", "Date of Birth", "Application Number",
+                    "Mobile Number", "Email ID", "Category", "Admission Category", "Merit (%)",
+                    "Obtain (%)", "Bonus (%)", "Weightage (%)", "Class", "Ncc Type", "IsDisabled",
+                    "Final Status", "Scholarship Name", "Subject Selection Status"
                 ]
 
                 if st.session_state.p2_show_columns_section:
@@ -1244,7 +1255,7 @@ else:
 
                 # सुरक्षा नियम: यदि सब डिलीट कर दें तो कम से कम नाम और नंबर जरूर दिखे
                 if not chosen_render_cols:
-                    chosen_render_cols = ["Admission Application Number", "Student Name"]
+                    chosen_render_cols = ["Application Number", "Student Name"]
 
                 # 🔀 List Order Selector — P10 जैसा ही Sort Order सिस्टम अब P2 में भी
                 p2_sort_order_choice = st.selectbox(
@@ -1276,11 +1287,10 @@ else:
                 # ==================================================================
                 # 📊 Data Grid Overview (स्क्रीन पर दिखने वाली एकमात्र मुख्य तालिका)
                 # ==================================================================
-                # 🟢 सुधार: दोनों नाम विविधताओं को सुरक्षित रूप से सिंक करें
-                if "Admission Application Number" in admission_display_db.columns:
-                    admission_display_db["Application Number"] = admission_display_db["Admission Application Number"]
-                elif "Application Number" in admission_display_db.columns:
-                    admission_display_db["Admission Application Number"] = admission_display_db["Application Number"]
+                # 🟢 फिक्स: पहले यहाँ "Application Number" को "Admission Application Number" के
+                # डेटा से जबरन ओवरराइट कर दिया जाता था — अब हटा दिया गया है ताकि "Application Number"
+                # अपना असली डेटा दिखाए (P2 की column list में सिर्फ यही field चाहिए, "Admission
+                # Application Number" नहीं)।
 
                 for col in chosen_render_cols:
                     if col not in admission_display_db.columns:
@@ -1649,75 +1659,70 @@ else:
                         "10th Passing Year", "12th Roll No", "12th Board Type", "12th Passing Year"
                     ]
 
+                    # 🟢 बदलाव: अब यहाँ अलग से फ़ाइल अपलोड नहीं करनी — यह फॉर्मेट सीधे
+                    # Admission Panel (P2) में जो डेटा पहले से Approved/मौजूद है, उसी से अपने आप
+                    # बन जाएगा। नीचे दिया गया मैप बताता है कि हर आउटपुट कॉलम किस Admission Panel
+                    # फ़ील्ड से लिया जा रहा है — अगर कोई मैपिंग बदलनी हो तो बताइए, ठीक कर देंगे।
+                    ADMISSION_FORMAT_SOURCE_MAP = {
+                        "Academic Batch": "Admission Session",
+                        "Admission No.": "Admission Application Number",
+                        "Enrollment No.": "Enrollment No.",
+                        "Student Name": "Student Name",
+                        "DOB": "Date of Birth",
+                        "Caste": "Category",
+                        "Course Code": "Subject Code",
+                        "Course": "Degree",
+                        "Branch Code": "",   # अभी DB में इसका कोई सीधा फ़ील्ड नहीं है
+                        "Branch": "Branch",
+                        "10th Roll No": "",  # अभी DB में इसका कोई सीधा फ़ील्ड नहीं है
+                        "10th Board Type": "",
+                        "10th Passing Year": "",
+                        "12th Roll No": "",
+                        "12th Board Type": "",
+                        "12th Passing Year": ""
+                    }
+
                     st.info(
-                        "📌 इस फॉर्मेट में अपलोड की जाने वाली फाइल में ये कॉलम होने चाहिए: "
-                        + ", ".join(ADMISSION_FORMAT_COLUMNS)
+                        "📌 यह फॉर्मेट अब खुद-ब-खुद Admission Panel (P2) के मौजूदा डेटा से बनता है — "
+                        "अलग से फ़ाइल अपलोड करने की ज़रूरत नहीं है। जिन कॉलम्स के लिए अभी डेटाबेस में कोई "
+                        "सीधा फ़ील्ड नहीं है (जैसे Branch Code, 10th/12th की जानकारी), वे फ़िलहाल खाली दिखेंगे।"
                     )
 
-                    admission_format_file = st.file_uploader(
-                        "📤 Admission Format फ़ाइल अपलोड करें (CSV / XLSX):",
-                        type=["csv", "xlsx", "xls"],
-                        key="p4_admission_format_uploader"
-                    )
+                    admission_source_df = live_db[live_db["Target Panel Visibility"] == "P2"].copy()
 
-                    if admission_format_file is not None:
-                        try:
-                            if admission_format_file.name.endswith('.csv'):
-                                adm_fmt_df = pd.read_csv(admission_format_file, dtype=str).fillna("")
-                            elif admission_format_file.name.endswith('.xlsx'):
-                                adm_fmt_df = pd.read_excel(admission_format_file, engine='openpyxl', dtype=str).fillna("")
+                    if admission_source_df.empty:
+                        st.warning("⚠️ Admission Panel (P2) में अभी कोई अधिकृत (Approved) डेटा उपलब्ध नहीं है, इसलिए यह फॉर्मेट खाली है।")
+                    else:
+                        adm_fix_map = {
+                            "Unique Id": "Unique ID", "Date Of Birth": "Date of Birth",
+                            "Duretion": "Duration", "Email Id": "Email ID", "Year": "Current Year"
+                        }
+                        admission_source_df = admission_source_df.rename(columns=adm_fix_map)
+                        admission_source_df = admission_source_df.loc[:, ~admission_source_df.columns.duplicated()].copy()
+
+                        adm_fmt_df = pd.DataFrame()
+                        for out_col in ADMISSION_FORMAT_COLUMNS:
+                            if out_col == "Sr.No.":
+                                continue
+                            src_col = ADMISSION_FORMAT_SOURCE_MAP.get(out_col, "")
+                            if src_col and src_col in admission_source_df.columns:
+                                adm_fmt_df[out_col] = admission_source_df[src_col].astype(str).str.strip()
                             else:
-                                try:
-                                    adm_fmt_df = pd.read_excel(admission_format_file, engine='xlrd', dtype=str).fillna("")
-                                except Exception:
-                                    admission_format_file.seek(0)
-                                    html_tables = pd.read_html(admission_format_file)
-                                    adm_fmt_df = html_tables[0].astype(str).fillna("") if html_tables else pd.DataFrame()
+                                adm_fmt_df[out_col] = ""
 
-                            adm_fmt_df = adm_fmt_df.apply(lambda x: x.str.strip() if x.dtype == "object" else x)
+                        adm_fmt_df.insert(0, "Sr.No.", range(1, len(adm_fmt_df) + 1))
 
-                            # 🧠 स्मार्ट कॉलम मैचिंग: हेडर नाम अलग-अलग तरीके से लिखे होने पर भी सही कॉलम में मैप करें
-                            def _normalize_admfmt_col(name):
-                                return re.sub(r"[^a-z0-9]", "", str(name).strip().lower())
+                        st.success(f"✅ Admission Panel से कुल {len(adm_fmt_df)} रिकॉर्ड्स इस फॉर्मेट में मिले।")
+                        st.dataframe(adm_fmt_df[ADMISSION_FORMAT_COLUMNS], use_container_width=True, hide_index=True)
 
-                            adm_fmt_lookup = {_normalize_admfmt_col(c): c for c in ADMISSION_FORMAT_COLUMNS}
-                            rename_map_adm_fmt = {}
-                            for col in adm_fmt_df.columns:
-                                norm_key = _normalize_admfmt_col(col)
-                                if norm_key in adm_fmt_lookup and col != adm_fmt_lookup[norm_key]:
-                                    rename_map_adm_fmt[col] = adm_fmt_lookup[norm_key]
-                            if rename_map_adm_fmt:
-                                adm_fmt_df = adm_fmt_df.rename(columns=rename_map_adm_fmt)
-
-                            missing_cols = [c for c in ADMISSION_FORMAT_COLUMNS if c not in adm_fmt_df.columns]
-
-                            if missing_cols:
-                                st.error(
-                                    "❌ अपलोड की गई फ़ाइल में ये ज़रूरी कॉलम नहीं मिले, कृपया सही फॉर्मेट अपलोड करें: "
-                                    + ", ".join(missing_cols)
-                                )
-                            elif adm_fmt_df.empty:
-                                st.error("❌ फ़ाइल में कोई मान्य डेटा नहीं मिला।")
-                            else:
-                                st.success(f"✅ फ़ाइल वैलिडेट हो गई! कुल {len(adm_fmt_df)} रिकॉर्ड्स मिले।")
-                                st.dataframe(adm_fmt_df[ADMISSION_FORMAT_COLUMNS], use_container_width=True, hide_index=True)
-
-                                if st.button("💾 Validate & Save to Live Database", type="primary", use_container_width=True, key="p4_admission_format_save_btn"):
-                                    clean_adm_fmt_df = adm_fmt_df[ADMISSION_FORMAT_COLUMNS].copy()
-
-                                    for extra_col in DEFAULT_COLUMNS:
-                                        if extra_col not in clean_adm_fmt_df.columns:
-                                            clean_adm_fmt_df[extra_col] = ""
-
-                                    current_live_db = load_live_data()
-                                    updated_live_db = pd.concat([current_live_db, clean_adm_fmt_df], ignore_index=True)
-                                    save_live_data(updated_live_db)
-                                    st.success(f"🎉 सफलता! {len(clean_adm_fmt_df)} रिकॉर्ड्स लाइव डेटाबेस में सेव हो गए!")
-                                    st.balloons()
-                                    st.rerun()
-
-                        except Exception as e:
-                            st.error(f"फ़ाइल प्रोसेसिंग में तकनीकी समस्या: {e}")
+                        st.download_button(
+                            label="📥 Admission Format Download करें (CSV)",
+                            data=adm_fmt_df[ADMISSION_FORMAT_COLUMNS].to_csv(index=False).encode('utf-8'),
+                            file_name="admission_format_export.csv",
+                            mime="text/csv",
+                            use_container_width=True,
+                            key="p4_admission_format_download_btn"
+                        )
 
                 elif file_format_type == "2. Upload Fee Format":
                     st.info(
