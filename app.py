@@ -1697,10 +1697,14 @@ else:
 
                 if file_format_type == "1. Upload Admission Format":
                     ADMISSION_FORMAT_COLUMNS = [
-                        "Sr.No.", "Academic Batch", "Admission No.", "Enrollment No.",
-                        "Student Name", "DOB", "Caste", "Course Code", "Course",
-                        "Branch Code", "Branch", "10th Roll No", "10th Board Type",
-                        "10th Passing Year", "12th Roll No", "12th Board Type", "12th Passing Year"
+                        "Sr. No.", "Admission/Enrollment Number*", "Academic Start Batch(20XX-XX)*",
+                        "Student Full Name*", "Caste*", "Institute Code*", "Course Code*", "Course Name*",
+                        "Branch Code*(Mandatory where branches are applicable)",
+                        "Branch Name*(Mandatory where branches are applicable)",
+                        "Xth Board Name(MPBSE, CBSE, Other)*", "Xth Enrollment No./Roll No.*",
+                        "Xth Board Passing Year(XXXX)*", "Xth Board DOB(YYYY-MM-DD)*",
+                        "XIIth Board Name(MPBSE, CBSE, Others)", "XIIth Enrollment No./Roll No.",
+                        "XIIth Passing Year(XXXX)", "Hosteller(Yes or No)"
                     ]
 
                     # 🟢 बदलाव: अब यहाँ अलग से फ़ाइल अपलोड नहीं करनी — यह फॉर्मेट सीधे
@@ -1708,28 +1712,30 @@ else:
                     # बन जाएगा। नीचे दिया गया मैप बताता है कि हर आउटपुट कॉलम किस Admission Panel
                     # फ़ील्ड से लिया जा रहा है — अगर कोई मैपिंग बदलनी हो तो बताइए, ठीक कर देंगे।
                     ADMISSION_FORMAT_SOURCE_MAP = {
-                        "Academic Batch": "Admission Session",
-                        "Admission No.": "Admission Application Number",
-                        "Enrollment No.": "Enrollment No.",
-                        "Student Name": "Student Name",
-                        "DOB": "Date of Birth",
-                        "Caste": "Category",
-                        "Course Code": "Subject Code",
-                        "Course": "Degree",
-                        "Branch Code": "",   # अभी DB में इसका कोई सीधा फ़ील्ड नहीं है
-                        "Branch": "Branch",
-                        "10th Roll No": "",  # अभी DB में इसका कोई सीधा फ़ील्ड नहीं है
-                        "10th Board Type": "",
-                        "10th Passing Year": "",
-                        "12th Roll No": "",
-                        "12th Board Type": "",
-                        "12th Passing Year": ""
+                        "Admission/Enrollment Number*": "Admission Application Number",
+                        "Academic Start Batch(20XX-XX)*": "Admission Session",
+                        "Student Full Name*": "Student Name",
+                        "Caste*": "Category",
+                        "Institute Code*": "",  # अभी DB में इसका कोई सीधा फ़ील्ड नहीं है
+                        "Course Code*": "Subject Code",
+                        "Course Name*": "Degree",
+                        "Branch Code*(Mandatory where branches are applicable)": "",  # DB में सीधा फ़ील्ड नहीं
+                        "Branch Name*(Mandatory where branches are applicable)": "Branch",
+                        "Xth Board Name(MPBSE, CBSE, Other)*": "",   # DB में सीधा फ़ील्ड नहीं
+                        "Xth Enrollment No./Roll No.*": "",          # DB में सीधा फ़ील्ड नहीं
+                        "Xth Board Passing Year(XXXX)*": "",         # DB में सीधा फ़ील्ड नहीं
+                        "Xth Board DOB(YYYY-MM-DD)*": "Date of Birth",
+                        "XIIth Board Name(MPBSE, CBSE, Others)": "", # DB में सीधा फ़ील्ड नहीं
+                        "XIIth Enrollment No./Roll No.": "",         # DB में सीधा फ़ील्ड नहीं
+                        "XIIth Passing Year(XXXX)": "",              # DB में सीधा फ़ील्ड नहीं
+                        "Hosteller(Yes or No)": ""                   # DB में सीधा फ़ील्ड नहीं
                     }
 
                     st.info(
                         "📌 यह फॉर्मेट अब खुद-ब-खुद Admission Panel (P2) के मौजूदा डेटा से बनता है — "
                         "अलग से फ़ाइल अपलोड करने की ज़रूरत नहीं है। जिन कॉलम्स के लिए अभी डेटाबेस में कोई "
-                        "सीधा फ़ील्ड नहीं है (जैसे Branch Code, 10th/12th की जानकारी), वे फ़िलहाल खाली दिखेंगे।"
+                        "सीधा फ़ील्ड नहीं है (जैसे Institute Code, Branch Code, Xth/XIIth बोर्ड की जानकारी, "
+                        "Hosteller), वे फ़िलहाल खाली दिखेंगे — बताइए तो इनका सोर्स भी जोड़ देंगे।"
                     )
 
                     admission_source_df = live_db[live_db["Target Panel Visibility"] == "P2"].copy()
@@ -1746,7 +1752,7 @@ else:
 
                         adm_fmt_df = pd.DataFrame()
                         for out_col in ADMISSION_FORMAT_COLUMNS:
-                            if out_col == "Sr.No.":
+                            if out_col == "Sr. No.":
                                 continue
                             src_col = ADMISSION_FORMAT_SOURCE_MAP.get(out_col, "")
                             if src_col and src_col in admission_source_df.columns:
@@ -1754,7 +1760,7 @@ else:
                             else:
                                 adm_fmt_df[out_col] = ""
 
-                        adm_fmt_df.insert(0, "Sr.No.", range(1, len(adm_fmt_df) + 1))
+                        adm_fmt_df.insert(0, "Sr. No.", range(1, len(adm_fmt_df) + 1))
 
                         st.success(f"✅ Admission Panel से कुल {len(adm_fmt_df)} रिकॉर्ड्स इस फॉर्मेट में मिले।")
 
@@ -1764,7 +1770,7 @@ else:
                         # ==================================================================
                         col_admf_1, col_admf_2 = st.columns(2)
                         with col_admf_1:
-                            admf_filter_col_options = [c for c in ADMISSION_FORMAT_COLUMNS if c != "Sr.No."]
+                            admf_filter_col_options = [c for c in ADMISSION_FORMAT_COLUMNS if c != "Sr. No."]
                             admf_filter_col = st.selectbox(
                                 "3. Select Column Filter Target:",
                                 options=admf_filter_col_options,
