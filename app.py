@@ -3,6 +3,8 @@ import pandas as pd
 import os
 import json
 import io
+import re
+import hashlib
 
 # ==========================================================
 # ⚙️ स्टेप 1: पेज का लेआउट सेट करें
@@ -22,7 +24,8 @@ CRED_FILE = "user_credentials.json"
 PANEL_CONFIG_FILE = "panel_config.json"
 
 # ==========================================================
-# 0. हर पैनल के कॉलम
+# 0. हर पैनल के कॉलम (पहला कॉलम = उस पैनल की "Primary Key"।
+#    Manual Entry में यह भरना ज़रूरी है, वरना खाली row सेव नहीं होगी)
 # ==========================================================
 ADMISSION_COLUMNS = [
     "Admission No.", "Eligibility", "Unique ID", "Roll No.",
@@ -65,8 +68,10 @@ PANEL_ICONS = {
 
 # ==========================================================
 # डिफ़ॉल्ट Credentials (हर पैनल का अपना यूज़र + एक Super Admin)
+# NOTE: यहाँ जो पासवर्ड लिखे हैं वो सिर्फ पहली बार डिफ़ॉल्ट सेट-अप के लिए हैं।
+# फ़ाइल में सेव होने से पहले इन्हें hash कर दिया जाता है (नीचे load_credentials देखें)।
 # ==========================================================
-DEFAULT_CREDENTIALS = {
+DEFAULT_CREDENTIALS_PLAIN = {
     "admin": {
         "password": "admin123", "role": "admin",
         "label": "👑 Super Admin (Sabhi Panels)"
@@ -98,6 +103,25 @@ DEFAULT_PANEL_CONFIG = {
 
 
 # ==========================================================
+# 🔒 पासवर्ड को हमेशा hash करके ही डिस्क पर रखा जाता है
+#    (plain text password file me kabhi save nahi hota)
+# ==========================================================
+def hash_password(plain_text: str) -> str:
+    return hashlib.sha256(plain_text.encode("utf-8")).hexdigest()
+
+
+def build_default_credentials_hashed():
+    hashed = {}
+    for username, info in DEFAULT_CREDENTIALS_PLAIN.items():
+        hashed[username] = {
+            "password": hash_password(info["password"]),
+            "role": info["role"],
+            "label": info["label"],
+        }
+    return hashed
+
+
+# ==========================================================
 # 📁 स्टेप 3: डेटा सहेजने / लोड करने वाले कोर फंक्शन्स (JSON)
 # ==========================================================
 
@@ -105,12 +129,15 @@ def load_credentials():
     if os.path.exists(CRED_FILE):
         try:
             with open(CRED_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
+                data = json.load(f)
+                if isinstance(data, dict) and data:
+                    return data
         except Exception:
-            return DEFAULT_CREDENTIALS.copy()
+            pass
+    hashed_defaults = build_default_credentials_hashed()
     with open(CRED_FILE, "w", encoding="utf-8") as f:
-        json.dump(DEFAULT_CREDENTIALS, f, ensure_ascii=False, indent=4)
-    return DEFAULT_CREDENTIALS.copy()
+        json.dump(hashed_defaults, f, ensure_ascii=False, indent=4)
+    return hashed_defaults
 
 
 def save_credentials(cred_dict):
@@ -122,9 +149,11 @@ def load_panel_config():
     if os.path.exists(PANEL_CONFIG_FILE):
         try:
             with open(PANEL_CONFIG_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
+                data = json.load(f)
+                if isinstance(data, dict) and data:
+                    return data
         except Exception:
-            return DEFAULT_PANEL_CONFIG.copy()
+            pass
     with open(PANEL_CONFIG_FILE, "w", encoding="utf-8") as f:
         json.dump(DEFAULT_PANEL_CONFIG, f, ensure_ascii=False, indent=4)
     return DEFAULT_PANEL_CONFIG.copy()
@@ -162,13 +191,34 @@ def save_panel_data(panel_key, df):
     df.fillna("").astype(str).to_csv(file_path, index=False)
 
 
+def sanitize_sheet_name(name: str, used_names: set) -> str:
+    """Excel sheet ke naam me kuch special characters allowed nahi hote (\\ / ? * [ ] :)
+    aur naam 31 characters se lamba bhi nahi ho sakta. Yahan naam ko safe banaya jaata hai
+    aur agar do panels ka naam ek jaisa ho jaaye to uske aage number laga dete hain,
+    taaki Excel file banate waqt koi error na aaye."""
+    clean = re.sub(r'[\\/\?\*\[\]:]', "-", str(name)).strip()
+    if not clean:
+        clean = "Sheet"
+    clean = clean[:31]
+    final_name = clean
+    counter = 2
+    while final_name in used_names:
+        suffix = f" ({counter})"
+        final_name = clean[: 31 - len(suffix)] + suffix
+        counter += 1
+    used_names.add(final_name)
+    return final_name
+
+
 def build_full_excel_export(panel_config):
     """4 panels ka permanent data - ek hi Excel file me, har panel ek alag Sheet."""
     output = io.BytesIO()
+    used_names = set()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
         for key in ["admission", "scholarship_admission", "scholarship_fee", "merge"]:
             df = load_panel_data(key)
-            sheet_name = panel_config[key]["label"][:31] if panel_config[key]["label"] else key[:31]
+            raw_label = panel_config.get(key, {}).get("label") or key
+            sheet_name = sanitize_sheet_name(raw_label, used_names)
             df.to_excel(writer, sheet_name=sheet_name, index=False)
     return output.getvalue()
 
@@ -188,6 +238,15 @@ if "current_role" not in st.session_state:
     st.session_state.current_role = None
 if "current_label" not in st.session_state:
     st.session_state.current_label = None
+# 🆕 हर पैनल के फॉर्म/फ़ाइल-अपलोडर को सेव करने के बाद खाली (reset) करने के लिए काउंटर
+if "form_key_counter" not in st.session_state:
+    st.session_state.form_key_counter = {
+        "admission": 0, "scholarship_admission": 0, "scholarship_fee": 0
+    }
+if "uploader_key_counter" not in st.session_state:
+    st.session_state.uploader_key_counter = {
+        "admission": 0, "scholarship_admission": 0, "scholarship_fee": 0
+    }
 
 
 # ==========================================================
@@ -200,11 +259,13 @@ def render_login():
 
     col1, col2 = st.columns([1, 2])
     with col1:
-        username = st.text_input("Username")
+        username = st.text_input("Username").strip()
         password = st.text_input("Password", type="password")
         if st.button("Login", type="primary", use_container_width=True):
             creds = st.session_state.credentials
-            if username in creds and creds[username]["password"] == password:
+            if not username or not password:
+                st.error("Username aur Password dono bharna zaroori hai!")
+            elif username in creds and creds[username]["password"] == hash_password(password):
                 st.session_state.logged_in = True
                 st.session_state.current_user = username
                 st.session_state.current_role = creds[username]["role"]
@@ -218,10 +279,11 @@ def render_login():
 # 🧩 स्टेप 7: डेटा पैनल के लिए Reusable Helper Functions
 # ==========================================================
 
-def render_bulk_upload(panel_key, columns, current_df):
+def render_bulk_upload(panel_key, current_df):
     st.subheader("📁 CSV Se Bulk Data Upload Karein")
+    uploader_key = f"uploader_{panel_key}_{st.session_state.uploader_key_counter[panel_key]}"
     uploaded_file = st.file_uploader(
-        "CSV फ़ाइल चुनें", type=["csv"], key=f"uploader_{panel_key}"
+        "CSV फ़ाइल चुनें", type=["csv"], key=uploader_key
     )
     if uploaded_file is not None:
         try:
@@ -229,6 +291,8 @@ def render_bulk_upload(panel_key, columns, current_df):
             if st.button("Upload CSV", type="primary", key=f"upload_btn_{panel_key}"):
                 new_df = pd.concat([current_df, uploaded_df], ignore_index=True)
                 save_panel_data(panel_key, new_df)
+                # 🆕 Uploader ko khaali karne ke liye uska key badal dete hain
+                st.session_state.uploader_key_counter[panel_key] += 1
                 st.success("CSV डेटा सफलतापूर्वक जोड़ दिया गया है (permanently save ho gaya)!")
                 st.rerun()
         except Exception as e:
@@ -237,18 +301,31 @@ def render_bulk_upload(panel_key, columns, current_df):
 
 def render_manual_entry(panel_key, columns):
     st.subheader("➕ Naya Data Add Karein")
+    counter = st.session_state.form_key_counter[panel_key]
+    primary_key_col = columns[0]
+
     values = {}
     cols_widgets = st.columns(4)
     for i, col_name in enumerate(columns):
         with cols_widgets[i % 4]:
-            values[col_name] = st.text_input(col_name, key=f"input_{panel_key}_{col_name}")
+            label = col_name + " *" if col_name == primary_key_col else col_name
+            values[col_name] = st.text_input(
+                label, key=f"input_{panel_key}_{counter}_{col_name}"
+            ).strip()
 
-    if st.button("Save Data", use_container_width=True, key=f"save_btn_{panel_key}"):
-        current_df = load_panel_data(panel_key)
-        new_df = pd.concat([current_df, pd.DataFrame([values])], ignore_index=True)
-        save_panel_data(panel_key, new_df)
-        st.success("नया डेटा permanently सुरक्षित कर लिया गया है!")
-        st.rerun()
+    st.caption(f"* {primary_key_col} bharna zaroori hai.")
+
+    if st.button("Save Data", use_container_width=True, key=f"save_btn_{panel_key}_{counter}"):
+        if not values[primary_key_col]:
+            st.error(f"'{primary_key_col}' khaali nahi ho sakta — pehle yeh bharein.")
+        else:
+            current_df = load_panel_data(panel_key)
+            new_df = pd.concat([current_df, pd.DataFrame([values])], ignore_index=True)
+            save_panel_data(panel_key, new_df)
+            # 🆕 Form ke fields ko khaali karne ke liye counter badal dete hain
+            st.session_state.form_key_counter[panel_key] += 1
+            st.success("नया डेटा permanently सुरक्षित कर लिया गया है!")
+            st.rerun()
 
 
 def render_table_and_actions(panel_key, df, download_filename):
@@ -289,7 +366,7 @@ def render_data_panel(panel_key):
 
     df = load_panel_data(panel_key)
 
-    render_bulk_upload(panel_key, columns, df)
+    render_bulk_upload(panel_key, df)
     st.divider()
     render_manual_entry(panel_key, columns)
     st.divider()
@@ -312,15 +389,25 @@ def render_merge_panel():
         sch_adm = load_panel_data("scholarship_admission")
         sch_fee = load_panel_data("scholarship_fee")
 
-        adm = adm[adm[key_column].astype(str).str.strip() != ""] if key_column in adm.columns else adm
-        sch_adm = sch_adm[sch_adm[key_column].astype(str).str.strip() != ""] if key_column in sch_adm.columns else sch_adm
-        sch_fee = sch_fee[sch_fee[key_column].astype(str).str.strip() != ""] if key_column in sch_fee.columns else sch_fee
-
-        merged = adm
+        # खाली key वाली rows merge से पहले हटा दें ताकि गलत जुड़ाव न हो
+        if key_column in adm.columns:
+            adm = adm[adm[key_column].astype(str).str.strip() != ""]
         if key_column in sch_adm.columns:
-            merged = pd.merge(merged, sch_adm, on=key_column, how="outer", suffixes=("", "_sch_adm"))
+            sch_adm = sch_adm[sch_adm[key_column].astype(str).str.strip() != ""]
         if key_column in sch_fee.columns:
-            merged = pd.merge(merged, sch_fee, on=key_column, how="outer", suffixes=("", "_sch_fee"))
+            sch_fee = sch_fee[sch_fee[key_column].astype(str).str.strip() != ""]
+
+        merged = adm.copy()
+
+        # 🆕 FIX: pehle jo columns (Student Name, Unique ID, Category waghera) merged me
+        # pehle se maujood hain, unhe dusri baar merge nahi karte — sirf naye/extra columns
+        # hi jode jaate hain. Isse messy "_sch_adm" / "_sch_fee" wale duplicate columns
+        # nahi banenge aur merged table saaf rahegi.
+        for extra_df in [sch_adm, sch_fee]:
+            if key_column not in extra_df.columns:
+                continue
+            new_cols = [key_column] + [c for c in extra_df.columns if c not in merged.columns]
+            merged = pd.merge(merged, extra_df[new_cols], on=key_column, how="outer")
 
         save_panel_data("merge", merged)
         st.success("Data merge ho gaya hai aur permanently save ho gaya!")
@@ -354,12 +441,15 @@ def render_admin_panel():
                 value=cfg["visible"], key=f"admin_visible_{panel_key}",
             )
             if st.button("Save Panel Changes", key=f"admin_save_panel_{panel_key}"):
-                panel_config[panel_key]["label"] = new_label
-                panel_config[panel_key]["visible"] = new_visible
-                save_panel_config(panel_config)
-                st.session_state.panel_config = panel_config
-                st.success(f"'{new_label}' panel update ho gaya!")
-                st.rerun()
+                if not new_label.strip():
+                    st.error("Panel ka naam khaali nahi ho sakta.")
+                else:
+                    panel_config[panel_key]["label"] = new_label.strip()
+                    panel_config[panel_key]["visible"] = new_visible
+                    save_panel_config(panel_config)
+                    st.session_state.panel_config = panel_config
+                    st.success(f"'{new_label}' panel update ho gaya!")
+                    st.rerun()
 
     st.divider()
 
@@ -387,13 +477,19 @@ def render_admin_panel():
                 value="", type="password", key=f"cred_password_{username}",
             )
             if st.button("Update User", key=f"cred_save_{username}"):
-                creds[username]["label"] = new_label
-                if new_password.strip():
-                    creds[username]["password"] = new_password
-                save_credentials(creds)
-                st.session_state.credentials = creds
-                st.success(f"'{username}' ka data update ho gaya!")
-                st.rerun()
+                if not new_label.strip():
+                    st.error("Display naam khaali nahi ho sakta.")
+                else:
+                    creds[username]["label"] = new_label.strip()
+                    if new_password.strip():
+                        creds[username]["password"] = hash_password(new_password.strip())
+                    save_credentials(creds)
+                    st.session_state.credentials = creds
+                    # Agar khud apna hi naam/password badla hai, to current session bhi update karein
+                    if username == st.session_state.current_user:
+                        st.session_state.current_label = creds[username]["label"]
+                    st.success(f"'{username}' ka data update ho gaya!")
+                    st.rerun()
 
     st.divider()
 
