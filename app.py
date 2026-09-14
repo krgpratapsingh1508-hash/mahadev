@@ -87,14 +87,14 @@ DEFAULT_CREDENTIALS = {
     "p6_scholarship": {"password": "sch6123", "role": "p6_role", "label": "💰 P6: Portal & Scholarship Tracker"},
     "p7_cce": {"password": "cce7123", "role": "p7_role", "label": "🖨️ P7: CCE panel & Foil Sheet Generator"},
     "p11_notice": {"password": "not11123", "role": "p11_role", "label": "📢 P11: System Informer Block"},
-    "p12_login_view": {"password": "view12123", "role": "p12_role", "label": "📚 P12: Subject Syllabus Manager"},
-    "p13_merge": {"password": "mrg13123", "role": "p13_role", "label": "🔀 P13: Merge & Approve Panel"}
+    "p13_merge": {"password": "mrg13123", "role": "p13_role", "label": "🔀 P13: Merge & Approve Panel"},
+    "p14_viewer": {"password": "view14123", "role": "p14_role", "label": "👁️ P14: Multi-Panel Inspection Window"}
 }
 
 DEFAULT_PANELS = {
     "P1": "Panal entry", "P2": "Admission panel", "P6": "Scholarship panel",
-    "P7": "CCE panel", "P11": "notice board info", "P12": "📚 Subject Syllabus Manager",
-    "P13": "🔀 Merge & Approve Panel", "P15": "Panel admin"
+    "P7": "CCE panel", "P11": "notice board info", "P13": "🔀 Merge & Approve Panel",
+    "P14": "Panal viewer", "P15": "Panel admin"
 }
 
 DEFAULT_COLUMNS = [
@@ -770,8 +770,8 @@ else:
     elif role == "p6_role": allowed_panels = ["P6"]
     elif role == "p7_role": allowed_panels = ["P7"]
     elif role == "p11_role": allowed_panels = ["P11"]
-    elif role == "p12_role": allowed_panels = ["P12"]
     elif role == "p13_role": allowed_panels = ["P13"]
+    elif role == "p14_role": allowed_panels = ["P14"]
 
     active_tabs_names = [f"{p} : {get_panel_title(p)}" for p in allowed_panels if not st.session_state.get(f"hide_panel_{p}", False) or role == "full_admin"]
     
@@ -2265,174 +2265,101 @@ else:
                         st.rerun()
 
         # ----------------------------------------------------------------------
-        # P12: DASH BOARD EDITER MODULE (Pre-Login & Notice Customizer Combined)
+        # P14: MULTI-PANEL INSPECTION WINDOW
         # ----------------------------------------------------------------------
-        elif current_panel_id == "P12":
-            st.header(f"📚 {get_panel_title('P12')} (Subject + Year wise Syllabus Upload / Link Manager)")
+        elif current_panel_id == "P14":
+            st.header(f"👁️ {get_panel_title('P14')} (Multi-Panel Inspection Window)")
 
-            st.markdown(
-                '<div style="background-color: #fcf8e3; border-left: 5px solid #f0ad4e; padding: 12px; border-radius: 4px; margin-bottom: 20px;">'
-                '📌 <b>निर्देश:</b> डेटाबेस में मौजूद हर <b>Subject</b> के लिए, हर <b>Year</b> (1st Year, 2nd Year...) के हिसाब से अलग-अलग '
-                '<b>Syllabus File अपलोड</b> कर सकते हैं या उसका <b>Link (URL)</b> दे सकते हैं। यही Syllabus होम पेज (Desk Board) पर '
-                'बिना लॉगिन किए भी छात्रों को दिखेगा — वो अपना Subject और Year चुनकर सीधे Syllabus पा सकेंगे। '
-                '(नोट: Notice Board और Header/Branding Settings अब <b>Panel Admin (P15)</b> से मैनेज होती हैं।)'
-                '</div>',
-                unsafe_allow_html=True
+            # Standardized 22 core fields mapping per target layout configuration
+            all_22_columns = [
+                "Admission Application Number", "Roll No.", "Enrollment No.", "Student Name", "Father Name", 
+                "Admission Year", "Admission Session", "Eligibility Name", "Admission Date", "Unique ID", 
+                "Application Enrollment No.", "Mother Name", "Date of Birth", "Category", "Subject", 
+                "Duration", "Mobile Number", "Email ID", "Address", "Status", "Current Year", "Payment Date"
+            ]
+
+            # Structural column profiles customized per workspace panel selection (only available panels)
+            panel_options_list = {
+                "Panel 2: Admission View": all_22_columns,
+                "Panel 6: Scholarship View": ["Admission Application Number", "Unique ID", "Student Name", "Category", "Scholarship Name", "Scholarship Status"],
+                "Panel 7: CCE panel View": all_22_columns
+            }
+
+            st.subheader("📂 Select Panel Dashboard View")
+            selected_panel_view = st.selectbox(
+                "निरीक्षण करने के लिए पैनल सूची चुनें (Select Dashboard to Inspect):",
+                options=list(panel_options_list.keys()),
+                key="p14_panel_selector_dropdown_secure_v15"
             )
 
-            p12_can_edit = role in ("full_admin", "p12_role")
-            if not p12_can_edit:
-                st.warning("🔒 **रीड-ओनली मोड:** आपके पास यहाँ Syllabus अपलोड/एडिट करने का अधिकार नहीं है — आप सिर्फ मौजूदा Syllabus देख/डाउनलोड कर सकते हैं।")
+            # Map selection labels to their exact database target visibility tracking tags
+            panel_id_map = {
+                "Panel 2: Admission View": "P2",
+                "Panel 6: Scholarship View": "P6", "Panel 7: CCE panel View": "P7"
+            }
+            target_panel_id = panel_id_map[selected_panel_view]
+            target_columns = panel_options_list[selected_panel_view]
 
-            p12_live_db = load_live_data()
-            p12_subject_list = []
-            if "Subject" in p12_live_db.columns:
-                p12_subject_list = sorted([
-                    s for s in p12_live_db["Subject"].dropna().astype(str).str.strip().unique()
-                    if s and s.lower() != "nan"
-                ])
+            # 🔍 Isolated Firewall Query Rule: Filter centralized records matching visibility tokens
+            view_filtered_db = live_db[live_db["Target Panel Visibility"] == target_panel_id].copy()
 
-            if not p12_subject_list:
-                st.info("ℹ️ अभी तक डेटाबेस में कोई Subject उपलब्ध नहीं है। पहले P1 (Data Onboarding) से Students जोड़ें — उनके Subjects यहाँ अपने-आप दिखने लगेंगे।")
+            # Normalization translator dictionary to prevent cell mismatches or blank structures
+            column_mapping_fixes = {
+                "Unique Id": "Unique ID", "Student Abc Id": "Unique ID", 
+                "Date Of Birth": "Date of Birth", "Duretion": "Duration", 
+                "Email Id": "Email ID", "Year": "Current Year",
+                "Application Number": "Admission Application Number",
+                "Enrollment No": "Enrollment No."
+            }
+            view_filtered_db = view_filtered_db.rename(columns=column_mapping_fixes)
+            if "Application Number" in view_filtered_db.columns and "Admission Application Number" not in view_filtered_db.columns:
+                view_filtered_db["Admission Application Number"] = view_filtered_db["Application Number"]
+
+            # Populate any structural column keys missing from memory
+            for c_col in target_columns:
+                if c_col not in view_filtered_db.columns:
+                    view_filtered_db[c_col] = ""
+
+            st.markdown(f"### 📋 {selected_panel_view} - Isolated Inspection Records")
+            
+            col_search1, col_search2 = st.columns(2)
+            with col_search1:
+                search_target_col = st.selectbox("खोजने के लिए फ़ील्ड चुनें:", options=target_columns, key="p14_search_col_target_secure_v15")
+            with col_search2:
+                search_query_text = st.text_input(f"'{search_target_col}' में प्रविष्टि खोजें:", key="p14_query_val_text_secure_v15").strip()
+
+            if search_query_text != "":
+                # 🟢 डुप्लिकेट कॉलम एरर फिक्स इंजन
+                col_data = view_filtered_db[search_target_col]
+                search_series = col_data.iloc[:, 0] if isinstance(col_data, pd.DataFrame) else col_data
+                
+                view_filtered_db = view_filtered_db[
+                    search_series.astype(str).str.contains(search_query_text, case=False, na=False)
+                ]
+
+            st.write(f"वर्तमान ग्रिड में कुल उपलब्ध स्वीकृत छात्र रिकॉर्ड संख्या: **{len(view_filtered_db)}**")
+
+            final_render_cols = [col for col in target_columns if col in view_filtered_db.columns]
+            
+            if not view_filtered_db.empty:
+                display_ready_df = view_filtered_db[final_render_cols].copy()
+                display_ready_df.insert(0, "S. No.", range(1, len(display_ready_df) + 1))
+            
+                # 🟢 एरर फिक्स: डुप्लिकेट कॉलम को डिलीट करने के लिए यह लाइन यहाँ जोड़ें
+                display_ready_df = display_ready_df.loc[:, ~display_ready_df.columns.duplicated()].copy()
+            
+                st.dataframe(display_ready_df, use_container_width=True, hide_index=True)
+                
+                st.download_button(
+                    label=f"📥 Download Selected Dashboard Report Snapshot (CSV)",
+                    data=view_filtered_db[final_render_cols].to_csv(index=False).encode('utf-8'),
+                    file_name=f"{selected_panel_view.replace(':', '').replace(' ', '_').lower()}_snapshot.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                    key="p14_download_compiled_report_btn_secure_v15"
+                )
             else:
-                # 🟢 Data structure ab nested hai: { Subject: { Year: {"type","value","file_name"} } }
-                p12_syllabus_data = load_syllabus_data()
-                st.caption(f"📚 कुल **{len(p12_subject_list)}** Subjects मिले — हर Subject के अंदर अब **Year-wise** Syllabus सेट कर सकते हैं।")
-
-                for p12_subj in p12_subject_list:
-                    p12_safe_subj_key = _re_notice_link.sub(r'[^A-Za-z0-9_-]+', '_', p12_subj)
-                    p12_subj_years = p12_syllabus_data.get(p12_subj, {})
-                    # 🟢 FIX: fixed 6 Years ki jagah ab is Subject ki asli Duration ke
-                    # hisaab se hi Years ki list banti hai (jaise 3 saal ka course ho to
-                    # sirf 3 Years hi dikhenge)
-                    p12_yr_count = get_subject_syllabus_year_count(p12_subj, p12_live_db)
-
-                    # 🟢 नया: PG कोर्सेज़ (जैसे 2 Year का कोर्स) के लिए अब Year-wise की जगह
-                    # Semester-wise भी Syllabus सेट किया जा सकता है — 2 Year = 4 Semester,
-                    # 3 Year = 6 Semester वगैरह। हर Subject अपनी चुनी हुई Mode याद रखता है
-                    # (डेटा फ़ाइल में "__mode__" key में सेव होती है), ताकि दोबारा खोलने पर
-                    # सही Mode (Year / Semester) अपने आप दिखे।
-                    p12_saved_mode = p12_subj_years.get("__mode__", "year")
-                    p12_mode_options = ["📅 Year-wise", "📆 Semester-wise (PG)"]
-                    p12_mode_default_idx = 1 if p12_saved_mode == "semester" else 0
-                    p12_chosen_mode_raw = st.radio(
-                        f"**{p12_subj}** — Syllabus किस हिसाब से सेट करें?",
-                        options=p12_mode_options,
-                        index=p12_mode_default_idx,
-                        key=f"p12_period_mode_{p12_safe_subj_key}",
-                        horizontal=True,
-                        disabled=not p12_can_edit
-                    )
-                    p12_chosen_mode = "semester" if p12_chosen_mode_raw == p12_mode_options[1] else "year"
-                    if p12_can_edit and p12_chosen_mode != p12_saved_mode:
-                        p12_subj_years["__mode__"] = p12_chosen_mode
-                        p12_syllabus_data[p12_subj] = p12_subj_years
-                        save_syllabus_data(p12_syllabus_data)
-
-                    if p12_chosen_mode == "semester":
-                        # PG जैसे कोर्स: N Year = N × 2 Semester (ज़्यादा से ज़्यादा 12 Semester)
-                        p12_sem_count = min(p12_yr_count * 2, len(SYLLABUS_SEM_OPTIONS))
-                        p12_years_for_subject = SYLLABUS_SEM_OPTIONS[:p12_sem_count]
-                        p12_period_word = "Semester"
-                    else:
-                        p12_years_for_subject = SYLLABUS_YEAR_OPTIONS[:p12_yr_count]
-                        p12_period_word = "Year"
-
-                    p12_years_done = sum(1 for _y in p12_years_for_subject if _y in p12_subj_years)
-                    with st.expander(f"📘 {p12_subj}  —  ({p12_years_done}/{len(p12_years_for_subject)} {p12_period_word} की Syllabus सेट है)", expanded=False):
-
-                        # --- मौजूदा सभी Year/Semester का status एक साथ दिखाएँ ---
-                        for p12_yr in p12_years_for_subject:
-                            p12_yr_existing = p12_subj_years.get(p12_yr, {})
-                            p12_yr_safe_key = f"{p12_safe_subj_key}__{_re_notice_link.sub(r'[^A-Za-z0-9_-]+', '_', p12_yr)}"
-                            st.markdown(f"**🗓️ {p12_yr}**")
-                            p12_status_col, p12_action_col = st.columns([3, 2])
-
-                            with p12_status_col:
-                                if p12_yr_existing.get("type") == "file" and p12_yr_existing.get("value") and os.path.exists(p12_yr_existing["value"]):
-                                    st.success(f"✅ फ़ाइल मौजूद: **{p12_yr_existing.get('file_name', os.path.basename(p12_yr_existing['value']))}**")
-                                elif p12_yr_existing.get("type") == "link" and p12_yr_existing.get("value"):
-                                    st.success("✅ Link मौजूद है:")
-                                    st.markdown(f"🔗 [Syllabus खोलें (नए टैब में)]({p12_yr_existing['value']})")
-                                else:
-                                    st.info("अभी तक कोई Syllabus नहीं जोड़ा गया।")
-
-                            with p12_action_col:
-                                if p12_yr_existing.get("type") == "file" and p12_yr_existing.get("value") and os.path.exists(p12_yr_existing["value"]):
-                                    try:
-                                        with open(p12_yr_existing["value"], "rb") as p12_fh:
-                                            st.download_button(
-                                                "⬇️ Download",
-                                                data=p12_fh.read(),
-                                                file_name=p12_yr_existing.get("file_name", os.path.basename(p12_yr_existing["value"])),
-                                                key=f"p12_dl_{p12_yr_safe_key}",
-                                                use_container_width=True
-                                            )
-                                    except Exception:
-                                        st.error("⚠️ फ़ाइल पढ़ने में समस्या।")
-                                if p12_can_edit and p12_yr_existing:
-                                    if st.button("🗑️ हटाएँ", key=f"p12_remove_{p12_yr_safe_key}", use_container_width=True):
-                                        if p12_yr_existing.get("type") == "file" and p12_yr_existing.get("value") and os.path.exists(p12_yr_existing["value"]):
-                                            try:
-                                                os.remove(p12_yr_existing["value"])
-                                            except Exception:
-                                                pass
-                                        del p12_subj_years[p12_yr]
-                                        p12_syllabus_data[p12_subj] = p12_subj_years
-                                        save_syllabus_data(p12_syllabus_data)
-                                        st.success(f"🗑️ {p12_subj} — {p12_yr} का Syllabus हटा दिया गया।")
-                                        st.rerun()
-
-                            if p12_can_edit:
-                                p12_mode = st.radio(
-                                    f"{p12_yr} के लिए Syllabus कैसे जोड़ें/बदलें?",
-                                    ["📎 File Upload", "🔗 Link (URL)"],
-                                    key=f"p12_mode_{p12_yr_safe_key}",
-                                    horizontal=True,
-                                    label_visibility="collapsed"
-                                )
-                                if p12_mode == "📎 File Upload":
-                                    p12_up_file = st.file_uploader(
-                                        f"{p12_yr} — Syllabus File चुनें (PDF/DOC/DOCX/Image):",
-                                        type=["pdf", "doc", "docx", "png", "jpg", "jpeg"],
-                                        key=f"p12_upl_{p12_yr_safe_key}",
-                                        label_visibility="collapsed"
-                                    )
-                                    if st.button(f"💾 {p12_yr} — File Save करें", key=f"p12_savefile_{p12_yr_safe_key}", use_container_width=True):
-                                        if p12_up_file is not None:
-                                            os.makedirs(SYLLABUS_UPLOAD_DIR, exist_ok=True)
-                                            p12_ext = os.path.splitext(p12_up_file.name)[1] or ".pdf"
-                                            p12_save_path = os.path.join(SYLLABUS_UPLOAD_DIR, f"{p12_yr_safe_key}{p12_ext}")
-                                            with open(p12_save_path, "wb") as p12_fo:
-                                                p12_fo.write(p12_up_file.getvalue())
-                                            p12_subj_years[p12_yr] = {
-                                                "type": "file", "value": p12_save_path, "file_name": p12_up_file.name
-                                            }
-                                            p12_syllabus_data[p12_subj] = p12_subj_years
-                                            save_syllabus_data(p12_syllabus_data)
-                                            st.success(f"🎉 {p12_subj} — {p12_yr} के लिए Syllabus फ़ाइल सेव हो गई!")
-                                            st.rerun()
-                                        else:
-                                            st.warning("⚠️ पहले कोई फ़ाइल चुनें, फिर Save करें।")
-                                else:
-                                    p12_default_link = p12_yr_existing.get("value", "") if p12_yr_existing.get("type") == "link" else ""
-                                    p12_link_val = st.text_input(
-                                        f"{p12_yr} — Syllabus Link (URL) डालें:",
-                                        value=p12_default_link,
-                                        key=f"p12_link_{p12_yr_safe_key}",
-                                        placeholder="https://...",
-                                        label_visibility="collapsed"
-                                    )
-                                    if st.button(f"💾 {p12_yr} — Link Save करें", key=f"p12_savelink_{p12_yr_safe_key}", use_container_width=True):
-                                        if p12_link_val.strip():
-                                            p12_subj_years[p12_yr] = {"type": "link", "value": p12_link_val.strip(), "file_name": ""}
-                                            p12_syllabus_data[p12_subj] = p12_subj_years
-                                            save_syllabus_data(p12_syllabus_data)
-                                            st.success(f"🎉 {p12_subj} — {p12_yr} के लिए Syllabus Link सेव हो गया!")
-                                            st.rerun()
-                                        else:
-                                            st.warning("⚠️ Link खाली नहीं छोड़ सकते।")
-                            st.markdown("---")
+                st.warning("🔍 निर्दिष्ट खोज प्रविष्टि या स्वीकृत पैनल विज़िबिलिटी के आधार पर कोई रिकॉर्ड नहीं मिला।")
 
         # ======================================================================
         # P13: 🔀 MERGE & APPROVE PANEL (Complete Integrated Routing System)
@@ -3020,7 +2947,7 @@ else:
 
             if st.session_state.get("p15_show_panel_visibility", True):
                 # Visibility Panel Controllers Layer for the 8 active panels only
-                active_panel_keys = ["P1", "P2", "P6", "P7", "P11", "P12", "P13", "P15"]
+                active_panel_keys = ["P1", "P2", "P6", "P7", "P11", "P13", "P14", "P15"]
                 vis_cols = st.columns(len(active_panel_keys))
                 for i, p_key in enumerate(active_panel_keys):
                     with vis_cols[i]:
