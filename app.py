@@ -1951,6 +1951,49 @@ else:
 
                 st.markdown('</div>', unsafe_allow_html=True)
 
+                # ----------------------------------------------------------------------
+                # भाग 3: 🔁 Find & Replace (P4 से ही सीधे इस्तेमाल हो सके, P8 जैसा ही टूल)
+                # ----------------------------------------------------------------------
+                st.markdown("---")
+                st.markdown('<div class="print-hide">', unsafe_allow_html=True)
+                if role in ["full_admin", "p1to7_role"]:
+                    st.subheader("🔁 Find & Replace (किसी कॉलम का टेक्स्ट बदलें)")
+                    st.caption("यह पूरे डेटाबेस (सभी पैनल्स) में असर करेगा — जो कॉलम चुनेंगे, उसी में यह बदलाव होगा।")
+                    p4fr_col_target = st.selectbox(
+                        "1. किस कॉलम में बदलना है, वह चुनें:",
+                        options=[c for c in live_db.columns if c != "Target Panel Visibility"],
+                        key="p4_find_replace_col_select"
+                    )
+                    p4fr_col1, p4fr_col2 = st.columns(2)
+                    with p4fr_col1:
+                        p4fr_find_text = st.text_input("2. यह टेक्स्ट ढूंढें (Find):", key="p4_find_text_input")
+                    with p4fr_col2:
+                        p4fr_replace_text = st.text_input("3. इससे बदलें (Replace With):", key="p4_replace_text_input")
+                    p4fr_exact_match = st.checkbox(
+                        "पूरी सेल वैल्यू बिल्कुल एक-जैसी (exact match) होने पर ही बदलें (टिक न करने पर अंश-मैच वाली सेल्स में भी बदल जाएगा)",
+                        value=False, key="p4_find_replace_exact_match_chk"
+                    )
+                    if p4fr_col_target:
+                        if p4fr_exact_match:
+                            p4fr_match_count = int((live_db[p4fr_col_target].astype(str).str.strip() == p4fr_find_text.strip()).sum()) if p4fr_find_text else 0
+                        else:
+                            p4fr_match_count = int(live_db[p4fr_col_target].astype(str).str.contains(re.escape(p4fr_find_text), na=False).sum()) if p4fr_find_text else 0
+                        st.write(f"🔎 इस समय कुल **{p4fr_match_count}** सेल्स मैच हो रही हैं।")
+                    p4fr_confirm = st.checkbox("हाँ, मैं इस बदलाव की पुष्टि करता हूँ।", key="p4_find_replace_confirm_chk")
+                    if st.button("🔁 Replace करें", type="primary", use_container_width=True, disabled=not p4fr_confirm, key="p4_find_replace_btn"):
+                        if not p4fr_find_text:
+                            st.error("❌ पहले 'Find' वाला टेक्स्ट भरें।")
+                        else:
+                            if p4fr_exact_match:
+                                p4fr_match_mask = live_db[p4fr_col_target].astype(str).str.strip() == p4fr_find_text.strip()
+                                live_db.loc[p4fr_match_mask, p4fr_col_target] = p4fr_replace_text
+                            else:
+                                live_db[p4fr_col_target] = live_db[p4fr_col_target].astype(str).str.replace(p4fr_find_text, p4fr_replace_text, regex=False)
+                            save_live_data(live_db)
+                            st.success(f"✅ `{p4fr_col_target}` कॉलम में `{p4fr_find_text}` को `{p4fr_replace_text}` से बदल दिया गया है!")
+                            st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
+
         # ----------------------------------------------------------------------
         # P5: ADVANCED PANEL-WISE COLUMN TWIN MAPPING SYSTEM (Fixed Core Sync)
         # ----------------------------------------------------------------------
