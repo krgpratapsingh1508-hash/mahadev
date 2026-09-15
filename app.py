@@ -206,6 +206,23 @@ def load_credentials():
 def save_credentials(cred_dict):
     with open(CRED_FILE, "w") as f: json.dump(cred_dict, f)
 
+ADMISSION_FORMAT_DEFAULTS_FILE = "admission_format_blank_defaults.json"
+
+# 🟢 P4 Admission Format के जिन कॉलम्स के लिए DB में कोई सीधा फ़ील्ड नहीं है (जैसे
+# Institute Code), उनके लिए यूज़र-सेट Default Values यहाँ स्थायी रूप से सेव होती हैं।
+def load_admission_format_defaults():
+    if os.path.exists(ADMISSION_FORMAT_DEFAULTS_FILE):
+        try:
+            with open(ADMISSION_FORMAT_DEFAULTS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, dict): return data
+        except: return {}
+    return {}
+
+def save_admission_format_defaults(defaults_dict):
+    with open(ADMISSION_FORMAT_DEFAULTS_FILE, "w", encoding="utf-8") as f:
+        json.dump(defaults_dict, f, ensure_ascii=False, indent=4)
+
 def load_panel_names():
     if os.path.exists(PANEL_NAME_FILE):
         try:
@@ -390,6 +407,9 @@ if "p1_dropdown_schemas" not in st.session_state:
 
 if "credentials" not in st.session_state or len(st.session_state.credentials) < 14:
     st.session_state.credentials = load_credentials()
+
+if "admission_format_blank_defaults" not in st.session_state:
+    st.session_state.admission_format_blank_defaults = load_admission_format_defaults()
 
 if "column_mappings" not in st.session_state: 
     st.session_state.column_mappings = load_column_mappings()
@@ -1725,11 +1745,33 @@ else:
                         "Hosteller(Yes or No)": ""                   # DB में सीधा फ़ील्ड नहीं
                     }
 
+                    # 🟢 जिन कॉलम्स के लिए ऊपर DB में कोई सीधा फ़ील्ड नहीं है (जैसे Institute Code),
+                    # उनके लिए आप यहीं एक Default Value सेट कर सकते हैं — एक बार सेव करने पर वह
+                    # उस कॉलम की हर रिकॉर्ड/रो में अपने-आप भर जाएगी (जब तक इसे दोबारा बदला न जाए)।
+                    admf_blank_cols = [c for c, src in ADMISSION_FORMAT_SOURCE_MAP.items() if not src]
+                    if admf_blank_cols:
+                        with st.expander("⚙️ खाली Columns के लिए Default Value सेट करें (Institute Code आदि)", expanded=False):
+                            st.caption("यहाँ जो भी वैल्यू भरेंगे, वह उस कॉलम की हर रो में अपने-आप आ जाएगी — जब तक इसे बदला न जाए।")
+                            with st.form(key="p4_admf_blank_defaults_form"):
+                                admf_new_defaults = {}
+                                admf_def_col1, admf_def_col2 = st.columns(2)
+                                for i, bcol in enumerate(admf_blank_cols):
+                                    current_val = st.session_state.admission_format_blank_defaults.get(bcol, "")
+                                    target_col = admf_def_col1 if i % 2 == 0 else admf_def_col2
+                                    with target_col:
+                                        admf_new_defaults[bcol] = st.text_input(f"{bcol}:", value=current_val, key=f"p4_admf_default_{i}")
+                                if st.form_submit_button("💾 Default Values सेव करें", type="primary", use_container_width=True):
+                                    st.session_state.admission_format_blank_defaults.update(admf_new_defaults)
+                                    save_admission_format_defaults(st.session_state.admission_format_blank_defaults)
+                                    st.success("✅ Default Values सेव हो गईं — अब यह सभी रिकॉर्ड्स में अपने-आप दिखेंगी।")
+                                    st.rerun()
+
                     st.info(
                         "📌 यह फॉर्मेट अब खुद-ब-खुद Admission Panel (P2) के मौजूदा डेटा से बनता है — "
                         "अलग से फ़ाइल अपलोड करने की ज़रूरत नहीं है। जिन कॉलम्स के लिए अभी डेटाबेस में कोई "
                         "सीधा फ़ील्ड नहीं है (जैसे Institute Code, Branch Code, Xth/XIIth बोर्ड की जानकारी, "
-                        "Hosteller), वे फ़िलहाल खाली दिखेंगे — बताइए तो इनका सोर्स भी जोड़ देंगे।"
+                        "Hosteller), उनके लिए ऊपर 'Default Value सेट करें' में वैल्यू भर दीजिए — वह सभी "
+                        "रिकॉर्ड्स में अपने-आप आ जाएगी। DB से लिंक करना हो तो वह भी बताइए।"
                     )
 
                     admission_source_df = live_db[live_db["Target Panel Visibility"] == "P2"].copy()
@@ -1752,7 +1794,7 @@ else:
                             if src_col and src_col in admission_source_df.columns:
                                 adm_fmt_df[out_col] = admission_source_df[src_col].astype(str).str.strip()
                             else:
-                                adm_fmt_df[out_col] = ""
+                                adm_fmt_df[out_col] = st.session_state.admission_format_blank_defaults.get(out_col, "")
 
                         # 🟢 DOB को हमेशा YYYY-MM-DD फॉर्मेट में दिखाने के लिए — चाहे DB में यह
                         # किसी भी तारीख फॉर्मेट (DD-MM-YYYY, DD/MM/YYYY, आदि) में सेव हो।
