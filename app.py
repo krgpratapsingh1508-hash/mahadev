@@ -203,6 +203,9 @@ def load_credentials():
         with open(CRED_FILE, "w") as f: json.dump(DEFAULT_CREDENTIALS, f)
         return DEFAULT_CREDENTIALS.copy()
 
+def save_credentials(cred_dict):
+    with open(CRED_FILE, "w") as f: json.dump(cred_dict, f)
+
 def load_panel_names():
     if os.path.exists(PANEL_NAME_FILE):
         try:
@@ -2729,17 +2732,80 @@ else:
                             st.rerun()
 
             st.markdown("---")
+            hdr_c1_p15_show_cred, hdr_c2_p15_show_cred = st.columns([6, 1])
+            with hdr_c1_p15_show_cred:
+                st.subheader("🔐 Admin & Mahadev Login Credentials Manager")
+            with hdr_c2_p15_show_cred:
+                if st.button("🙈 Hide" if st.session_state.get("p8_show_cred_manager", True) else "👁️ Unhide", key="p8_show_cred_manager_toggle_btn", use_container_width=True):
+                    st.session_state["p8_show_cred_manager"] = not st.session_state.get("p8_show_cred_manager", True)
+                    st.rerun()
+
+            if st.session_state.get("p8_show_cred_manager", True):
+                with st.expander("👑 Admin और 🔑 Mahadev — दोनों का Username/Password बदलने के लिए यहाँ क्लिक करें", expanded=False):
+                    cred_now = st.session_state.credentials
+                    # मौजूदा username ढूंढ रहे हैं role के आधार पर — भले ही पहले कभी username बदला जा चुका हो
+                    admin_uid_current = next((u for u, d in cred_now.items() if d.get("role") == "full_admin"), "admin")
+                    mahadev_uid_current = next((u for u, d in cred_now.items() if d.get("role") == "p1to7_role"), "mahadev")
+
+                    with st.form(key="p8_cred_manager_form_final_secure"):
+                        st.markdown("**👑 Super Admin Account**")
+                        c_admin_1, c_admin_2 = st.columns(2)
+                        with c_admin_1:
+                            new_admin_username = st.text_input("Admin — नया Username:", value=admin_uid_current, key="p8_new_admin_username")
+                        with c_admin_2:
+                            new_admin_password = st.text_input("Admin — नया Password:", value=cred_now.get(admin_uid_current, {}).get("password", ""), key="p8_new_admin_password")
+
+                        st.markdown("**🔑 Mahadev (P1–P7 Unified) Account**")
+                        c_mah_1, c_mah_2 = st.columns(2)
+                        with c_mah_1:
+                            new_mahadev_username = st.text_input("Mahadev — नया Username:", value=mahadev_uid_current, key="p8_new_mahadev_username")
+                        with c_mah_2:
+                            new_mahadev_password = st.text_input("Mahadev — नया Password:", value=cred_now.get(mahadev_uid_current, {}).get("password", ""), key="p8_new_mahadev_password")
+
+                        if st.form_submit_button("💾 Credentials Save करें", type="primary", use_container_width=True):
+                            new_admin_username_clean = new_admin_username.strip()
+                            new_mahadev_username_clean = new_mahadev_username.strip()
+                            if not new_admin_username_clean or not new_mahadev_username_clean:
+                                st.error("❌ Username खाली नहीं हो सकता।")
+                            elif not new_admin_password or not new_mahadev_password:
+                                st.error("❌ Password खाली नहीं हो सकता।")
+                            elif new_admin_username_clean == new_mahadev_username_clean:
+                                st.error("❌ दोनों अकाउंट्स का Username एक जैसा नहीं हो सकता।")
+                            else:
+                                updated_creds = {
+                                    new_admin_username_clean: {
+                                        "password": new_admin_password,
+                                        "role": "full_admin",
+                                        "label": cred_now.get(admin_uid_current, {}).get("label", "👑 Super Admin (Selected Panels Control)")
+                                    },
+                                    new_mahadev_username_clean: {
+                                        "password": new_mahadev_password,
+                                        "role": "p1to7_role",
+                                        "label": cred_now.get(mahadev_uid_current, {}).get("label", "🔑 P1-P7: Unified Panel Access (Mahadev)")
+                                    }
+                                }
+                                st.session_state.credentials = updated_creds
+                                save_credentials(updated_creds)
+                                # अगर अभी लॉगिन किया हुआ यूज़र वही है जिसका नाम बदला गया है, तो session को नए नाम से sync करें
+                                if st.session_state.logged_username == admin_uid_current:
+                                    st.session_state.logged_username = new_admin_username_clean
+                                elif st.session_state.logged_username == mahadev_uid_current:
+                                    st.session_state.logged_username = new_mahadev_username_clean
+                                st.success("✅ दोनों लॉगिन के Username/Password सफलतापूर्वक अपडेट हो गए! अगली बार इन्हीं नए क्रेडेंशियल्स से लॉगिन होगा।")
+                                st.rerun()
+
+            st.markdown("---")
             hdr_c1_p15_show_panel_visibility, hdr_c2_p15_show_panel_visibility = st.columns([6, 1])
             with hdr_c1_p15_show_panel_visibility:
-                st.subheader("🛡️ Global 8 Panels Visibility Toggle Switch Board")
+                st.subheader("🛡️ Global 7 Panels Visibility Toggle Switch Board")
             with hdr_c2_p15_show_panel_visibility:
                 if st.button("🙈 Hide" if st.session_state.get("p8_show_panel_visibility", True) else "👁️ Unhide", key="p8_show_panel_visibility_toggle_btn", use_container_width=True):
                     st.session_state["p8_show_panel_visibility"] = not st.session_state.get("p8_show_panel_visibility", True)
                     st.rerun()
 
             if st.session_state.get("p8_show_panel_visibility", True):
-                # Visibility Panel Controllers Layer for the 8 active panels only
-                active_panel_keys = ["P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8"]
+                # Visibility Panel Controllers Layer for P1 से P7 तक ही (P8 सुपर-एडमिन पैनल है, इसे टॉगल की ज़रूरत नहीं)
+                active_panel_keys = ["P1", "P2", "P3", "P4", "P5", "P6", "P7"]
                 vis_cols = st.columns(len(active_panel_keys))
                 for i, p_key in enumerate(active_panel_keys):
                     with vis_cols[i]:
