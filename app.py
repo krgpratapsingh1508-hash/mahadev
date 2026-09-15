@@ -1746,32 +1746,11 @@ else:
                         "Hosteller(Yes or No)": ""                   # DB में सीधा फ़ील्ड नहीं
                     }
 
-                    # 🟢 जिन कॉलम्स के लिए ऊपर DB में कोई सीधा फ़ील्ड नहीं है (जैसे Institute Code),
-                    # उनके लिए आप यहीं एक Default Value सेट कर सकते हैं — एक बार सेव करने पर वह
-                    # उस कॉलम की हर रिकॉर्ड/रो में अपने-आप भर जाएगी (जब तक इसे दोबारा बदला न जाए)।
-                    admf_blank_cols = [c for c, src in ADMISSION_FORMAT_SOURCE_MAP.items() if not src]
-                    if admf_blank_cols:
-                        with st.expander("⚙️ खाली Columns के लिए Default Value सेट करें (Institute Code आदि)", expanded=False):
-                            st.caption("यहाँ जो भी वैल्यू भरेंगे, वह उस कॉलम की हर रो में अपने-आप आ जाएगी — जब तक इसे बदला न जाए।")
-                            with st.form(key="p4_admf_blank_defaults_form"):
-                                admf_new_defaults = {}
-                                admf_def_col1, admf_def_col2 = st.columns(2)
-                                for i, bcol in enumerate(admf_blank_cols):
-                                    current_val = st.session_state.admission_format_blank_defaults.get(bcol, "")
-                                    target_col = admf_def_col1 if i % 2 == 0 else admf_def_col2
-                                    with target_col:
-                                        admf_new_defaults[bcol] = st.text_input(f"{bcol}:", value=current_val, key=f"p4_admf_default_{i}")
-                                if st.form_submit_button("💾 Default Values सेव करें", type="primary", use_container_width=True):
-                                    st.session_state.admission_format_blank_defaults.update(admf_new_defaults)
-                                    save_admission_format_defaults(st.session_state.admission_format_blank_defaults)
-                                    st.success("✅ Default Values सेव हो गईं — अब यह सभी रिकॉर्ड्स में अपने-आप दिखेंगी।")
-                                    st.rerun()
-
                     st.info(
                         "📌 यह फॉर्मेट अब खुद-ब-खुद Admission Panel (P2) के मौजूदा डेटा से बनता है — "
                         "अलग से फ़ाइल अपलोड करने की ज़रूरत नहीं है। जिन कॉलम्स के लिए अभी डेटाबेस में कोई "
                         "सीधा फ़ील्ड नहीं है (जैसे Institute Code, Branch Code, Xth/XIIth बोर्ड की जानकारी, "
-                        "Hosteller), उनके लिए ऊपर 'Default Value सेट करें' में वैल्यू भर दीजिए — वह सभी "
+                        "Hosteller), उनके लिए नीचे 'Super-Admin Schema Editor → ⚙️ Admission Format Defaults' में वैल्यू भर दीजिए — वह सभी "
                         "रिकॉर्ड्स में अपने-आप आ जाएगी। DB से लिंक करना हो तो वह भी बताइए।"
                     )
 
@@ -1995,49 +1974,6 @@ else:
                 st.markdown('</div>', unsafe_allow_html=True)
 
                 # ----------------------------------------------------------------------
-                # भाग 3: 🔁 Find & Replace (P4 से ही सीधे इस्तेमाल हो सके, P8 जैसा ही टूल)
-                # ----------------------------------------------------------------------
-                st.markdown("---")
-                st.markdown('<div class="print-hide">', unsafe_allow_html=True)
-                if role in ["full_admin", "p1to7_role"]:
-                    st.subheader("🔁 Find & Replace (किसी कॉलम का टेक्स्ट बदलें)")
-                    st.caption("यह पूरे डेटाबेस (सभी पैनल्स) में असर करेगा — जो कॉलम चुनेंगे, उसी में यह बदलाव होगा।")
-                    p4fr_col_target = st.selectbox(
-                        "1. किस कॉलम में बदलना है, वह चुनें:",
-                        options=[c for c in live_db.columns if c != "Target Panel Visibility"],
-                        key="p4_find_replace_col_select"
-                    )
-                    p4fr_col1, p4fr_col2 = st.columns(2)
-                    with p4fr_col1:
-                        p4fr_find_text = st.text_input("2. यह टेक्स्ट ढूंढें (Find):", key="p4_find_text_input")
-                    with p4fr_col2:
-                        p4fr_replace_text = st.text_input("3. इससे बदलें (Replace With):", key="p4_replace_text_input")
-                    p4fr_exact_match = st.checkbox(
-                        "पूरी सेल वैल्यू बिल्कुल एक-जैसी (exact match) होने पर ही बदलें (टिक न करने पर अंश-मैच वाली सेल्स में भी बदल जाएगा)",
-                        value=False, key="p4_find_replace_exact_match_chk"
-                    )
-                    if p4fr_col_target:
-                        if p4fr_exact_match:
-                            p4fr_match_count = int((live_db[p4fr_col_target].astype(str).str.strip() == p4fr_find_text.strip()).sum()) if p4fr_find_text else 0
-                        else:
-                            p4fr_match_count = int(live_db[p4fr_col_target].astype(str).str.contains(re.escape(p4fr_find_text), na=False).sum()) if p4fr_find_text else 0
-                        st.write(f"🔎 इस समय कुल **{p4fr_match_count}** सेल्स मैच हो रही हैं।")
-                    p4fr_confirm = st.checkbox("हाँ, मैं इस बदलाव की पुष्टि करता हूँ।", key="p4_find_replace_confirm_chk")
-                    if st.button("🔁 Replace करें", type="primary", use_container_width=True, disabled=not p4fr_confirm, key="p4_find_replace_btn"):
-                        if not p4fr_find_text:
-                            st.error("❌ पहले 'Find' वाला टेक्स्ट भरें।")
-                        else:
-                            if p4fr_exact_match:
-                                p4fr_match_mask = live_db[p4fr_col_target].astype(str).str.strip() == p4fr_find_text.strip()
-                                live_db.loc[p4fr_match_mask, p4fr_col_target] = p4fr_replace_text
-                            else:
-                                live_db[p4fr_col_target] = live_db[p4fr_col_target].astype(str).str.replace(p4fr_find_text, p4fr_replace_text, regex=False)
-                            save_live_data(live_db)
-                            st.success(f"✅ `{p4fr_col_target}` कॉलम में `{p4fr_find_text}` को `{p4fr_replace_text}` से बदल दिया गया है!")
-                            st.rerun()
-                st.markdown('</div>', unsafe_allow_html=True)
-
-                # ----------------------------------------------------------------------
                 # भाग 4: 🛠️ Super-Admin Schema Editor (Add/Delete Columns & Rows) — P8 जैसा
                 # ही, लेकिन यहाँ P4 से सीधे इस्तेमाल हो सके इसलिए। सुरक्षा के लिए एक अलग
                 # "Sheet Lock" बटन के पीछे बंद रहेगा — डिफ़ॉल्ट रूप से हमेशा Locked रहेगा।
@@ -2058,7 +1994,7 @@ else:
                         st.warning("🔒 **यह सेक्शन अभी Locked है।** कॉलम/रो जोड़ने-हटाने के लिए ऊपर '🔓 Sheet Unlock करें' बटन दबाएं।")
                     else:
                         st.info("🔓 **Unlocked मोड सक्रिय:** अब आप नीचे से कॉलम/रो जोड़ या हटा सकते हैं। काम पूरा होने पर वापस Lock कर दें।")
-                        tab_p4_col_ctrl, tab_p4_row_ctrl = st.tabs(["📊 Dynamic Column Panel Engine", "➕ Manual Row Injector"])
+                        tab_p4_col_ctrl, tab_p4_row_ctrl, tab_p4_find_replace, tab_p4_admf_defaults = st.tabs(["📊 Dynamic Column Panel Engine", "➕ Manual Row Injector", "🔁 Find & Replace", "⚙️ Admission Format Defaults"])
 
                         with tab_p4_col_ctrl:
                             col_p4_add_side, col_p4_del_side = st.columns(2)
@@ -2095,6 +2031,66 @@ else:
                                 save_live_data(live_db)
                                 st.success("🎉 एक खाली रो डेटाबेस के अंत में जोड़ दी गई है!")
                                 st.rerun()
+
+                        with tab_p4_find_replace:
+                            st.markdown("##### 🔁 किसी कॉलम में एक टेक्स्ट को दूसरे टेक्स्ट से बदलें (Find & Replace)")
+                            st.caption("यह पूरे डेटाबेस (सभी पैनल्स) में असर करेगा — जो कॉलम चुनेंगे, उसी में यह बदलाव होगा।")
+                            p4fr_col_target = st.selectbox(
+                                "1. किस कॉलम में बदलना है, वह चुनें:",
+                                options=[c for c in live_db.columns if c != "Target Panel Visibility"],
+                                key="p4_find_replace_col_select"
+                            )
+                            p4fr_col1, p4fr_col2 = st.columns(2)
+                            with p4fr_col1:
+                                p4fr_find_text = st.text_input("2. यह टेक्स्ट ढूंढें (Find):", key="p4_find_text_input")
+                            with p4fr_col2:
+                                p4fr_replace_text = st.text_input("3. इससे बदलें (Replace With):", key="p4_replace_text_input")
+                            p4fr_exact_match = st.checkbox(
+                                "पूरी सेल वैल्यू बिल्कुल एक-जैसी (exact match) होने पर ही बदलें (टिक न करने पर अंश-मैच वाली सेल्स में भी बदल जाएगा)",
+                                value=False, key="p4_find_replace_exact_match_chk"
+                            )
+                            if p4fr_col_target:
+                                if p4fr_exact_match:
+                                    p4fr_match_count = int((live_db[p4fr_col_target].astype(str).str.strip() == p4fr_find_text.strip()).sum()) if p4fr_find_text else 0
+                                else:
+                                    p4fr_match_count = int(live_db[p4fr_col_target].astype(str).str.contains(re.escape(p4fr_find_text), na=False).sum()) if p4fr_find_text else 0
+                                st.write(f"🔎 इस समय कुल **{p4fr_match_count}** सेल्स मैच हो रही हैं।")
+                            p4fr_confirm = st.checkbox("हाँ, मैं इस बदलाव की पुष्टि करता हूँ।", key="p4_find_replace_confirm_chk")
+                            if st.button("🔁 Replace करें", type="primary", use_container_width=True, disabled=not p4fr_confirm, key="p4_find_replace_btn"):
+                                if not p4fr_find_text:
+                                    st.error("❌ पहले 'Find' वाला टेक्स्ट भरें।")
+                                else:
+                                    if p4fr_exact_match:
+                                        p4fr_match_mask = live_db[p4fr_col_target].astype(str).str.strip() == p4fr_find_text.strip()
+                                        live_db.loc[p4fr_match_mask, p4fr_col_target] = p4fr_replace_text
+                                    else:
+                                        live_db[p4fr_col_target] = live_db[p4fr_col_target].astype(str).str.replace(p4fr_find_text, p4fr_replace_text, regex=False)
+                                    save_live_data(live_db)
+                                    st.success(f"✅ `{p4fr_col_target}` कॉलम में `{p4fr_find_text}` को `{p4fr_replace_text}` से बदल दिया गया है!")
+                                    st.rerun()
+
+                        with tab_p4_admf_defaults:
+                            st.markdown("##### ⚙️ P4 Admission Format के खाली Columns के लिए Default Value")
+                            st.caption("यह वही सेटिंग है जो 'Admission Format' टेबल में असर करती है — यहाँ से बदलने पर वहां भी अपने-आप अपडेट हो जाएगी।")
+                            admf_blank_cols_tab = [
+                                "Institute Code*", "Branch Code*(Mandatory where branches are applicable)",
+                                "Xth Board Name(MPBSE, CBSE, Other)*", "Xth Enrollment No./Roll No.*",
+                                "Xth Board Passing Year(XXXX)*", "XIIth Board Name(MPBSE, CBSE, Others)",
+                                "XIIth Enrollment No./Roll No.", "XIIth Passing Year(XXXX)", "Hosteller(Yes or No)"
+                            ]
+                            with st.form(key="p4tab_admf_blank_defaults_form"):
+                                admf_new_defaults_tab = {}
+                                admf_def_tab_col1, admf_def_tab_col2 = st.columns(2)
+                                for i, bcol in enumerate(admf_blank_cols_tab):
+                                    current_val = st.session_state.admission_format_blank_defaults.get(bcol, "")
+                                    target_col = admf_def_tab_col1 if i % 2 == 0 else admf_def_tab_col2
+                                    with target_col:
+                                        admf_new_defaults_tab[bcol] = st.text_input(f"{bcol}:", value=current_val, key=f"p4tab_admf_default_{i}")
+                                if st.form_submit_button("💾 Default Values सेव करें", type="primary", use_container_width=True):
+                                    st.session_state.admission_format_blank_defaults.update(admf_new_defaults_tab)
+                                    save_admission_format_defaults(st.session_state.admission_format_blank_defaults)
+                                    st.success("✅ Default Values सेव हो गईं — अब यह Admission Format की सभी रिकॉर्ड्स में अपने-आप दिखेंगी।")
+                                    st.rerun()
                 st.markdown('</div>', unsafe_allow_html=True)
 
         # ----------------------------------------------------------------------
