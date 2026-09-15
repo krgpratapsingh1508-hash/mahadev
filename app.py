@@ -1994,7 +1994,7 @@ else:
                         st.warning("🔒 **यह सेक्शन अभी Locked है।** कॉलम/रो जोड़ने-हटाने के लिए ऊपर '🔓 Sheet Unlock करें' बटन दबाएं।")
                     else:
                         st.info("🔓 **Unlocked मोड सक्रिय:** अब आप नीचे से कॉलम/रो जोड़ या हटा सकते हैं। काम पूरा होने पर वापस Lock कर दें।")
-                        tab_p4_col_ctrl, tab_p4_row_ctrl, tab_p4_find_replace, tab_p4_admf_defaults = st.tabs(["📊 Dynamic Column Panel Engine", "➕ Manual Row Injector", "🔁 Find & Replace", "⚙️ Admission Format Defaults"])
+                        tab_p4_col_ctrl, tab_p4_row_ctrl, tab_p4_find_replace, tab_p4_admf_defaults = st.tabs(["📊 Dynamic Column Panel Engine", "➕🗑️ Manual Row Injector / Delete", "🔁 Find & Replace", "⚙️ Admission Format Defaults"])
 
                         with tab_p4_col_ctrl:
                             col_p4_add_side, col_p4_del_side = st.columns(2)
@@ -2031,6 +2031,35 @@ else:
                                 save_live_data(live_db)
                                 st.success("🎉 एक खाली रो डेटाबेस के अंत में जोड़ दी गई है!")
                                 st.rerun()
+
+                            st.markdown("---")
+                            st.markdown("##### 🗑️ किसी खास रो को चुनकर हटाएं (Select & Delete Row)")
+                            if live_db.empty:
+                                st.info("💡 डेटाबेस अभी पूरी तरह खाली है, हटाने के लिए कोई रो उपलब्ध नहीं है।")
+                            else:
+                                p4_row_del_name_col = "Student Name" if "Student Name" in live_db.columns else live_db.columns[0]
+                                p4_row_del_id_col = "Application Number" if "Application Number" in live_db.columns else (
+                                    "Admission Application Number" if "Admission Application Number" in live_db.columns else None
+                                )
+                                p4_row_options = {}
+                                for idx, row in live_db.iterrows():
+                                    id_part = f" | {row.get(p4_row_del_id_col, '')}" if p4_row_del_id_col else ""
+                                    label = f"Row {idx + 1} | {row.get(p4_row_del_name_col, '')}{id_part}"
+                                    p4_row_options[label] = idx
+                                p4_selected_row_label = st.selectbox(
+                                    "हटाने के लिए रो चुनें:",
+                                    options=list(p4_row_options.keys()),
+                                    key="p4_row_delete_select"
+                                )
+                                p4_selected_row_idx = p4_row_options[p4_selected_row_label]
+                                st.write("चयनित रो का डेटा (पुष्टि के लिए):")
+                                st.dataframe(live_db.loc[[p4_selected_row_idx]], use_container_width=True, hide_index=True)
+                                p4_confirm_row_del = st.checkbox("हाँ, मैं इस रो को स्थायी रूप से हटाना चाहता हूँ।", key="p4_confirm_row_del_chk")
+                                if st.button("🗑️ ERASE ROW PERMANENTLY", type="primary", use_container_width=True, disabled=not p4_confirm_row_del, key="p4_erase_row_btn"):
+                                    live_db = live_db.drop(index=p4_selected_row_idx).reset_index(drop=True)
+                                    save_live_data(live_db)
+                                    st.error("💥 चयनित रो हटा दी गई है!")
+                                    st.rerun()
 
                         with tab_p4_find_replace:
                             st.markdown("##### 🔁 किसी कॉलम में एक टेक्स्ट को दूसरे टेक्स्ट से बदलें (Find & Replace)")
