@@ -3116,7 +3116,7 @@ else:
                         if role == "full_admin" and not st.session_state.admin_lock_state:
                             st.markdown("---")
                             st.markdown("#### 🛠️ Super-Admin Schema Editor (Add/Delete Columns & Rows)")
-                            tab_col_ctrl, tab_row_ctrl, tab_find_replace = st.tabs(["📊 Dynamic Column Panel Engine", "➕ Manual Row Injector", "🔁 Find & Replace"])
+                            tab_col_ctrl, tab_row_ctrl, tab_find_replace, tab_admf_defaults = st.tabs(["📊 Dynamic Column Panel Engine", "➕ Manual Row Injector", "🔁 Find & Replace", "⚙️ Admission Format Defaults"])
                             
                             with tab_col_ctrl:
                                 col_add_side, col_del_side = st.columns(2)
@@ -3189,6 +3189,29 @@ else:
                                             live_db[fr_col_target] = live_db[fr_col_target].astype(str).str.replace(fr_find_text, fr_replace_text, regex=False)
                                         save_live_data(live_db)
                                         st.success(f"✅ `{fr_col_target}` कॉलम में `{fr_find_text}` को `{fr_replace_text}` से बदल दिया गया है!")
+                                        st.rerun()
+
+                            with tab_admf_defaults:
+                                st.markdown("##### ⚙️ P4 Admission Format के खाली Columns के लिए Default Value")
+                                st.caption("यह वही सेटिंग है जो P4 → Admission Format में भी दिखती है — यहाँ से बदलने पर P4 में भी अपने-आप अपडेट हो जाएगी (और उल्टा भी)।")
+                                admf_blank_cols_p8 = [
+                                    "Institute Code*", "Branch Code*(Mandatory where branches are applicable)",
+                                    "Xth Board Name(MPBSE, CBSE, Other)*", "Xth Enrollment No./Roll No.*",
+                                    "Xth Board Passing Year(XXXX)*", "XIIth Board Name(MPBSE, CBSE, Others)",
+                                    "XIIth Enrollment No./Roll No.", "XIIth Passing Year(XXXX)", "Hosteller(Yes or No)"
+                                ]
+                                with st.form(key="p8_admf_blank_defaults_form"):
+                                    admf_new_defaults_p8 = {}
+                                    admf_def_p8_col1, admf_def_p8_col2 = st.columns(2)
+                                    for i, bcol in enumerate(admf_blank_cols_p8):
+                                        current_val = st.session_state.admission_format_blank_defaults.get(bcol, "")
+                                        target_col = admf_def_p8_col1 if i % 2 == 0 else admf_def_p8_col2
+                                        with target_col:
+                                            admf_new_defaults_p8[bcol] = st.text_input(f"{bcol}:", value=current_val, key=f"p8_admf_default_{i}")
+                                    if st.form_submit_button("💾 Default Values सेव करें", type="primary", use_container_width=True):
+                                        st.session_state.admission_format_blank_defaults.update(admf_new_defaults_p8)
+                                        save_admission_format_defaults(st.session_state.admission_format_blank_defaults)
+                                        st.success("✅ Default Values सेव हो गईं — अब यह P4 के Admission Format की सभी रिकॉर्ड्स में अपने-आप दिखेंगी।")
                                         st.rerun()
                         
                         st.markdown("---")
