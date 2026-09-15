@@ -3031,7 +3031,7 @@ else:
                         if role == "full_admin" and not st.session_state.admin_lock_state:
                             st.markdown("---")
                             st.markdown("#### 🛠️ Super-Admin Schema Editor (Add/Delete Columns & Rows)")
-                            tab_col_ctrl, tab_row_ctrl = st.tabs(["📊 Dynamic Column Panel Engine", "➕ Manual Row Injector"])
+                            tab_col_ctrl, tab_row_ctrl, tab_find_replace = st.tabs(["📊 Dynamic Column Panel Engine", "➕ Manual Row Injector", "🔁 Find & Replace"])
                             
                             with tab_col_ctrl:
                                 col_add_side, col_del_side = st.columns(2)
@@ -3068,6 +3068,43 @@ else:
                                     save_live_data(live_db)
                                     st.success("🎉 एक खाली रो डेटाबेस के अंत में जोड़ दी गई है!")
                                     st.rerun()
+
+                            with tab_find_replace:
+                                st.markdown("##### 🔁 किसी कॉलम में एक टेक्स्ट को दूसरे टेक्स्ट से बदलें (Find & Replace)")
+                                st.caption("यह पूरे डेटाबेस (सभी पैनल्स) में असर करेगा — जो कॉलम चुनेंगे, उसी में यह बदलाव होगा।")
+                                fr_col_target = st.selectbox(
+                                    "1. किस कॉलम में बदलना है, वह चुनें:",
+                                    options=[c for c in live_db.columns if c != "Target Panel Visibility"],
+                                    key="p8_find_replace_col_select"
+                                )
+                                fr_col1, fr_col2 = st.columns(2)
+                                with fr_col1:
+                                    fr_find_text = st.text_input("2. यह टेक्स्ट ढूंढें (Find):", key="p8_find_text_input")
+                                with fr_col2:
+                                    fr_replace_text = st.text_input("3. इससे बदलें (Replace With):", key="p8_replace_text_input")
+                                fr_exact_match = st.checkbox(
+                                    "पूरी सेल वैल्यू बिल्कुल एक-जैसी (exact match) होने पर ही बदलें (टिक न करने पर अंश-मैच वाली सेल्स में भी बदल जाएगा)",
+                                    value=False, key="p8_find_replace_exact_match_chk"
+                                )
+                                if fr_col_target:
+                                    if fr_exact_match:
+                                        fr_match_count = int((live_db[fr_col_target].astype(str).str.strip() == fr_find_text.strip()).sum()) if fr_find_text else 0
+                                    else:
+                                        fr_match_count = int(live_db[fr_col_target].astype(str).str.contains(re.escape(fr_find_text), na=False).sum()) if fr_find_text else 0
+                                    st.write(f"🔎 इस समय कुल **{fr_match_count}** सेल्स मैच हो रही हैं।")
+                                fr_confirm = st.checkbox("हाँ, मैं इस बदलाव की पुष्टि करता हूँ।", key="p8_find_replace_confirm_chk")
+                                if st.button("🔁 Replace करें", type="primary", use_container_width=True, disabled=not fr_confirm):
+                                    if not fr_find_text:
+                                        st.error("❌ पहले \'Find\' वाला टेक्स्ट भरें।")
+                                    else:
+                                        if fr_exact_match:
+                                            match_mask = live_db[fr_col_target].astype(str).str.strip() == fr_find_text.strip()
+                                            live_db.loc[match_mask, fr_col_target] = fr_replace_text
+                                        else:
+                                            live_db[fr_col_target] = live_db[fr_col_target].astype(str).str.replace(fr_find_text, fr_replace_text, regex=False)
+                                        save_live_data(live_db)
+                                        st.success(f"✅ `{fr_col_target}` कॉलम में `{fr_find_text}` को `{fr_replace_text}` से बदल दिया गया है!")
+                                        st.rerun()
                         
                         st.markdown("---")
                         
