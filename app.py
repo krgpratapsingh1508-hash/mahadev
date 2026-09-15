@@ -425,6 +425,7 @@ if "logged_username" not in st.session_state: st.session_state.logged_username =
 if "show_login_form" not in st.session_state: st.session_state.show_login_form = False
 if "admin_columns_order" not in st.session_state: st.session_state.admin_columns_order = DEFAULT_COLUMNS.copy()
 if "admin_lock_state" not in st.session_state: st.session_state.admin_lock_state = True
+if "p4_sheet_lock_state" not in st.session_state: st.session_state.p4_sheet_lock_state = True
 if "admin_unhide_edit" not in st.session_state: st.session_state.admin_unhide_edit = False
 if "admin_unhide_move" not in st.session_state: st.session_state.admin_unhide_move = False
 if "admin_hide_master_data" not in st.session_state: st.session_state.admin_hide_master_data = False
@@ -2034,6 +2035,66 @@ else:
                             save_live_data(live_db)
                             st.success(f"✅ `{p4fr_col_target}` कॉलम में `{p4fr_find_text}` को `{p4fr_replace_text}` से बदल दिया गया है!")
                             st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
+
+                # ----------------------------------------------------------------------
+                # भाग 4: 🛠️ Super-Admin Schema Editor (Add/Delete Columns & Rows) — P8 जैसा
+                # ही, लेकिन यहाँ P4 से सीधे इस्तेमाल हो सके इसलिए। सुरक्षा के लिए एक अलग
+                # "Sheet Lock" बटन के पीछे बंद रहेगा — डिफ़ॉल्ट रूप से हमेशा Locked रहेगा।
+                # ----------------------------------------------------------------------
+                st.markdown("---")
+                st.markdown('<div class="print-hide">', unsafe_allow_html=True)
+                if role in ["full_admin", "p1to7_role"]:
+                    hdr_p4sl_1, hdr_p4sl_2 = st.columns([6, 1])
+                    with hdr_p4sl_1:
+                        st.subheader("🛠️ Super-Admin Schema Editor (Add/Delete Columns & Rows)")
+                    with hdr_p4sl_2:
+                        p4_lock_label = "🔒 Sheet Lock करें (Locked)" if st.session_state.p4_sheet_lock_state else "🔓 Sheet Unlock करें (Editable)"
+                        if st.button(p4_lock_label, use_container_width=True, type="primary" if not st.session_state.p4_sheet_lock_state else "secondary", key="p4_sheet_lock_toggle_btn"):
+                            st.session_state.p4_sheet_lock_state = not st.session_state.p4_sheet_lock_state
+                            st.rerun()
+
+                    if st.session_state.p4_sheet_lock_state:
+                        st.warning("🔒 **यह सेक्शन अभी Locked है।** कॉलम/रो जोड़ने-हटाने के लिए ऊपर '🔓 Sheet Unlock करें' बटन दबाएं।")
+                    else:
+                        st.info("🔓 **Unlocked मोड सक्रिय:** अब आप नीचे से कॉलम/रो जोड़ या हटा सकते हैं। काम पूरा होने पर वापस Lock कर दें।")
+                        tab_p4_col_ctrl, tab_p4_row_ctrl = st.tabs(["📊 Dynamic Column Panel Engine", "➕ Manual Row Injector"])
+
+                        with tab_p4_col_ctrl:
+                            col_p4_add_side, col_p4_del_side = st.columns(2)
+                            with col_p4_add_side:
+                                st.markdown("##### ➕ नया कॉलम जोड़ें (Add Column)")
+                                p4_new_col_input = st.text_input("नया कॉलम का सटीक नाम दर्ज करें:", key="p4_new_col_input_name").strip()
+                                if st.button("🚀 Create Column Globally", type="primary", use_container_width=True, key="p4_create_col_btn"):
+                                    if p4_new_col_input and p4_new_col_input not in live_db.columns:
+                                        live_db[p4_new_col_input] = ""
+                                        if p4_new_col_input not in DEFAULT_COLUMNS: DEFAULT_COLUMNS.append(p4_new_col_input)
+                                        if p4_new_col_input not in st.session_state.admin_columns_order: st.session_state.admin_columns_order.append(p4_new_col_input)
+                                        save_live_data(live_db)
+                                        st.success(f"🎉 कॉलम `{p4_new_col_input}` संरचना में जुड़ गया है।")
+                                        st.rerun()
+
+                            with col_p4_del_side:
+                                st.markdown("##### 🗑️ कॉलम हटाएं (Delete Column)")
+                                p4_col_to_delete = st.selectbox("हटाने के लिए कॉलम चुनें:", options=[c for c in live_db.columns if c != "Target Panel Visibility"], key="p4_col_to_delete_select")
+                                p4_confirm_col_del = st.checkbox("हाँ, मैं इस कॉलम का पूरा डेटा नष्ट करना चाहता हूँ।", key="p4_confirm_col_del_chk")
+                                if st.button("🗑️ ERASE COLUMN PERMANENTLY", type="primary", use_container_width=True, disabled=not p4_confirm_col_del, key="p4_erase_col_btn"):
+                                    if p4_col_to_delete in live_db.columns: live_db = live_db.drop(columns=[p4_col_to_delete])
+                                    if p4_col_to_delete in DEFAULT_COLUMNS: DEFAULT_COLUMNS.remove(p4_col_to_delete)
+                                    if p4_col_to_delete in st.session_state.admin_columns_order: st.session_state.admin_columns_order.remove(p4_col_to_delete)
+                                    save_live_data(live_db)
+                                    st.error(f"💥 कॉलम `{p4_col_to_delete}` हटा दिया गया है!")
+                                    st.rerun()
+
+                        with tab_p4_row_ctrl:
+                            st.markdown("##### ➕ डेटाबेस में सिंगल रो इंजेक्ट करें (Add Row)")
+                            if st.button("➕ Inject Blank Data Row at the End", use_container_width=True, key="p4_inject_row_btn"):
+                                p4_blank_row = {c: "" for c in live_db.columns}
+                                p4_blank_row["Target Panel Visibility"] = "P2"
+                                live_db = pd.concat([live_db, pd.DataFrame([p4_blank_row])], ignore_index=True)
+                                save_live_data(live_db)
+                                st.success("🎉 एक खाली रो डेटाबेस के अंत में जोड़ दी गई है!")
+                                st.rerun()
                 st.markdown('</div>', unsafe_allow_html=True)
 
         # ----------------------------------------------------------------------
