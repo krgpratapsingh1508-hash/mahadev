@@ -26,7 +26,7 @@ st.set_page_config(layout="wide", page_title="Permanent Shared Live Database")
 # डेटा स्टोरेज फ़ाइलों के पाथ और नाम परिभाषा
 DB_FILE = "shared_student_database.csv"
 STAGE_FILE = "merge_stage_database.csv"
-CRED_FILE = "user_credentials_v15.json"
+CRED_FILE = "user_credentials_v16.json"
 MAP_FILE = "column_mapping_schema.json"
 PANEL_NAME_FILE = "panel_names_schema.json"
 TWIN_MAP_FILE = "twin_column_mapping_schema.json"
@@ -82,13 +82,9 @@ DEFAULT_NOTICE = (
 
 DEFAULT_CREDENTIALS = {
     "admin": {"password": "admin15master", "role": "full_admin", "label": "👑 Super Admin (Selected Panels Control)"},
-    "p1_entry": {"password": "entry1123", "role": "p1_role", "label": "📝 P1: Student Data Onboarding Operator"},
-    "p2_admission": {"password": "adm2123", "role": "p2_role", "label": "🎓 P2: Admission Control Manager"},
-    "p3_scholarship": {"password": "sch6123", "role": "p3_role", "label": "💰 P3: Portal & Scholarship Tracker"},
-    "p4_cce": {"password": "cce7123", "role": "p4_role", "label": "🖨️ P4: CCE panel & File Format Upload"},
-    "p5_notice": {"password": "not11123", "role": "p5_role", "label": "📢 P5: System Informer Block"},
-    "p6_merge": {"password": "mrg13123", "role": "p6_role", "label": "🔀 P6: Merge & Approve Panel"},
-    "p7_viewer": {"password": "view14123", "role": "p7_role", "label": "👁️ P7: Multi-Panel Inspection Window"}
+    # 🟢 बदलाव: P1 से P7 तक के अलग-अलग यूजरनेम/पासवर्ड हटाकर अब सिर्फ एक ही यूजरनेम
+    # "mahadev" और एक ही पासवर्ड से P1 से P7 तक के सभी पैनलों तक पहुंच मिलेगी।
+    "mahadev": {"password": "mahadev@123", "role": "p1to7_role", "label": "🔑 P1-P7: Unified Panel Access (Mahadev)"}
 }
 
 DEFAULT_PANELS = {
@@ -769,13 +765,8 @@ else:
     allowed_panels = []
     if role == "full_admin":
         allowed_panels = list(DEFAULT_PANELS.keys()) 
-    elif role == "p1_role": allowed_panels = ["P1"]
-    elif role == "p2_role": allowed_panels = ["P2"]
-    elif role == "p3_role": allowed_panels = ["P3"]
-    elif role == "p4_role": allowed_panels = ["P4"]
-    elif role == "p5_role": allowed_panels = ["P5"]
-    elif role == "p6_role": allowed_panels = ["P6"]
-    elif role == "p7_role": allowed_panels = ["P7"]
+    elif role == "p1to7_role":
+        allowed_panels = ["P1", "P2", "P3", "P4", "P5", "P6", "P7"]
 
     active_tabs_names = [f"{p} : {get_panel_title(p)}" for p in allowed_panels if not st.session_state.get(f"hide_panel_{p}", False) or role == "full_admin"]
     
@@ -1459,7 +1450,7 @@ else:
                 st.write(f"ग्रिड में प्रदर्शित कुल सक्रिय रिकॉर्ड संख्या (Active Matrix Profiles): **{len(render_df)}**")
                 
                 # 🔐 Access Restriction Interface (Security Gateway)
-                if role == "full_admin" or role == "p3_role":
+                if role == "full_admin" or role == "p1to7_role":
                     # Admins and designated operators can interactively modify the Scholarship Status field
                     disabled_cols = [c for c in render_df.columns if c != "Scholarship Status"]
                     st.info("🔓 **एडमिन कंट्रोल मोड:** आपके पास छात्रवृत्ति ट्रैकिंग मैट्रिक्स (Scholarship Status) एडिट और सिंक करने का पूर्ण अधिकार है।")
@@ -1486,7 +1477,7 @@ else:
                 )
                 
                 # Commit updates engine to synchronize state modifications with core live datasets
-                if role == "full_admin" or role == "p3_role":
+                if role == "full_admin" or role == "p1to7_role":
                     if st.button("Save & Sync Scholarship Matrix", type="primary", use_container_width=True, key="p3_save_btn_secure_tracker_engine"):
                         try:
                             clean_edited = edited_scholarship_df.drop(columns=["S. No."], errors="ignore")
@@ -1591,7 +1582,7 @@ else:
                 
                 # CCE लाइव डेटा एडिटर ग्रिड
                 st.markdown('<div class="print-hide">', unsafe_allow_html=True)
-                if role in ["full_admin", "p4_role"]:
+                if role in ["full_admin", "p1to7_role"]:
                     disabled_cols = [c for c in render_df.columns if c not in ["CCE Marks Obtained", "CCE Attendance Status"]]
                     st.info("🔓 **डेटा एंट्री मोड एक्टिव:** आप CCE Marks और Attendance Status बदल सकते हैं।")
                 else:
@@ -1610,7 +1601,7 @@ else:
                     hide_index=True
                 )
                 
-                if role in ["full_admin", "p4_role"]:
+                if role in ["full_admin", "p1to7_role"]:
                     if st.button("💾 Save Grid Changes to Master Database", type="primary", use_container_width=True, key="p4_save_grid_btn"):
                         try:
                             clean_edited = edited_cce.drop(columns=["S. No."], errors="ignore")
@@ -1820,21 +1811,42 @@ else:
 
                         # ==================================================================
                         # 📥 Download — CSV और XLSX दोनों फॉर्मेट में, सिर्फ ऊपर चुना हुआ (फ़िल्टर्ड) डेटा
+                        # 🟢 प्रिंट में जो हेडर (कॉलेज नाम, रिपोर्ट टाइटल, Column/Value) ऊपर दिखता है,
+                        # वही अब डाउनलोड की गई CSV और XLSX फ़ाइल में भी ऊपर जुड़ेगा।
                         # ==================================================================
+                        admf_header_lines = [h for h in [custom_header_1, custom_header_2, custom_header_3, custom_header_4] if h and h.strip()]
+
                         col_admdl_1, col_admdl_2 = st.columns(2)
                         with col_admdl_1:
+                            admf_csv_table_text = adm_fmt_view_df[ADMISSION_FORMAT_COLUMNS].to_csv(index=False)
+                            if admf_header_lines:
+                                admf_csv_data = "\n".join(admf_header_lines) + "\n\n" + admf_csv_table_text
+                            else:
+                                admf_csv_data = admf_csv_table_text
                             st.download_button(
                                 label="📥 CSV Download करें",
-                                data=adm_fmt_view_df[ADMISSION_FORMAT_COLUMNS].to_csv(index=False).encode('utf-8'),
+                                data=admf_csv_data.encode('utf-8'),
                                 file_name="admission_format_export.csv",
                                 mime="text/csv",
                                 use_container_width=True,
                                 key="p4_admission_format_download_csv_btn"
                             )
                         with col_admdl_2:
+                            from openpyxl.styles import Font as _AdmfFont, Alignment as _AdmfAlignment
                             admf_xlsx_buffer = io.BytesIO()
+                            admf_start_row = len(admf_header_lines) + 1 if admf_header_lines else 0
                             with pd.ExcelWriter(admf_xlsx_buffer, engine="openpyxl") as admf_writer:
-                                adm_fmt_view_df[ADMISSION_FORMAT_COLUMNS].to_excel(admf_writer, index=False, sheet_name="Admission Format")
+                                adm_fmt_view_df[ADMISSION_FORMAT_COLUMNS].to_excel(
+                                    admf_writer, index=False, sheet_name="Admission Format", startrow=admf_start_row
+                                )
+                                if admf_header_lines:
+                                    admf_ws = admf_writer.sheets["Admission Format"]
+                                    admf_ncols = len(ADMISSION_FORMAT_COLUMNS)
+                                    for _i, _line in enumerate(admf_header_lines, start=1):
+                                        admf_ws.merge_cells(start_row=_i, start_column=1, end_row=_i, end_column=admf_ncols)
+                                        _cell = admf_ws.cell(row=_i, column=1, value=_line)
+                                        _cell.font = _AdmfFont(bold=True, size=12 if _i <= 2 else 10)
+                                        _cell.alignment = _AdmfAlignment(horizontal="center")
                             st.download_button(
                                 label="📥 XLSX Download करें",
                                 data=admf_xlsx_buffer.getvalue(),
