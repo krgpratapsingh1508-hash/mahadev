@@ -496,20 +496,39 @@ def apply_college_type_zero(df, college_type, boys_columns, girls_columns):
         df[c] = "0"
     return df
 
-def build_format_rows_from_admission_db(db_df, out_columns, source_map, default_values=None, dedupe=True):
+def _ordinal_year_label(n):
+    # 🟢 1 → "1st Year", 2 → "2nd Year", 3 → "3rd Year", 4/5/... → "4th Year" वगैरह
+    n = int(n)
+    if 10 <= (n % 100) <= 20:
+        suffix = "th"
+    else:
+        suffix = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+    return f"{n}{suffix} Year"
+
+def build_format_rows_from_admission_db(db_df, out_columns, source_map, default_values=None, dedupe=True, duration_source_col=None, year_output_col=None):
     """
     🟢 बिना कोई फ़ाइल अपलोड किए, सीधे Admission Panel (P2) के मौजूदा डेटा से किसी भी
     फॉर्मेट (Format 2 / Format 3) की खाली-भरी टेबल बना देता है।
     source_map: {"आउटपुट कॉलम": "डेटाबेस कॉलम"} — जिस आउटपुट कॉलम का DB में कोई सीधा
     फ़ील्ड नहीं है, उसे default_values से भर दिया जाता है (वरना खाली रहेगा — बाद में
     नीचे दिए गए Edit Mode से हाथ से भरा जा सकता है)।
-    dedupe=True होने पर एक जैसी (Course/Branch/Year वाली) डुप्लिकेट लाइनें हटा दी जाती हैं,
+    dedupe=True होने पर एक जैसी (Course/Branch वाली) डुप्लिकेट लाइनें हटा दी जाती हैं,
     क्योंकि Fee फॉर्मेट में हर स्टूडेंट की नहीं, हर Course/Branch की एक ही लाइन चाहिए।
+
+    duration_source_col + year_output_col दिए जाने पर: हर Course/Branch की एक लाइन
+    की जगह, उस Course की DB में मौजूद Duration जितनी लाइनें बनती हैं — जैसे Duration = 3
+    हो तो "1st Year", "2nd Year", "3rd Year" तीन अलग लाइनें, Duration = 5 हो तो
+    "1st Year" से "5th Year" तक पाँच लाइनें। बाकी सारा डेटा (Course Code, Branch, Institute
+    आदि) उन सभी लाइनों में एक जैसा रहता है, सिर्फ Year वाला कॉलम बदलता है।
     """
     default_values = default_values or {}
     out_df = pd.DataFrame()
     for out_col in out_columns:
         if out_col == "Sr. No.":
+            continue
+        if out_col == year_output_col:
+            # 🟢 Year अब DB से नहीं, नीचे Duration के हिसाब से अपने-आप बनेगा
+            out_df[out_col] = ""
             continue
         src_col = source_map.get(out_col, "")
         if src_col and src_col in db_df.columns:
@@ -518,12 +537,35 @@ def build_format_rows_from_admission_db(db_df, out_columns, source_map, default_
             out_df[out_col] = str(default_values.get(out_col, ""))
     if out_df.empty:
         return pd.DataFrame(columns=out_columns)
+
+    if duration_source_col and duration_source_col in db_df.columns:
+        duration_series = pd.to_numeric(db_df[duration_source_col], errors="coerce").fillna(1)
+        duration_series = duration_series.clip(lower=1).astype(int)
+        out_df["_p4_duration_temp"] = duration_series.reset_index(drop=True)
+    else:
+        out_df["_p4_duration_temp"] = 1
+
     if dedupe:
-        key_cols = [c for c in out_df.columns if source_map.get(c, "") in db_df.columns and source_map.get(c, "")]
+        key_cols = [c for c in out_df.columns if c != "_p4_duration_temp" and c != year_output_col
+                    and source_map.get(c, "") in db_df.columns and source_map.get(c, "")]
         if key_cols:
             out_df = out_df.drop_duplicates(subset=key_cols).reset_index(drop=True)
         else:
             out_df = out_df.drop_duplicates().reset_index(drop=True)
+    out_df = out_df.reset_index(drop=True)
+
+    if year_output_col:
+        expanded_rows = []
+        for _, row in out_df.iterrows():
+            total_years = max(1, int(row["_p4_duration_temp"]))
+            for year_no in range(1, total_years + 1):
+                new_row = row.drop(labels=["_p4_duration_temp"]).to_dict()
+                new_row[year_output_col] = _ordinal_year_label(year_no)
+                expanded_rows.append(new_row)
+        out_df = pd.DataFrame(expanded_rows) if expanded_rows else out_df.drop(columns=["_p4_duration_temp"])
+    else:
+        out_df = out_df.drop(columns=["_p4_duration_temp"])
+
     out_df = out_df.reset_index(drop=True)
     if "Sr. No." in out_columns:
         out_df.insert(0, "Sr. No.", range(1, len(out_df) + 1))
@@ -2682,17 +2724,22 @@ else:
 
                     # 🗄️ बिना फ़ाइल दिए — Admission Panel (P2) के डेटा से यह फॉर्मेट अपने-आप बन जाए
                     fee2_db_source = live_db[live_db["Target Panel Visibility"] == "P2"].copy()
+                    # 🟢 आपकी नई शर्त: Course Academic Year अब DB के "Current Year" से नहीं,
+                    # बल्कि Duration के हिसाब से अपने-आप बनेगा — Duration = 3 है तो उस
+                    # Course/Branch की 1st, 2nd, 3rd Year तीन अलग लाइनें बन जाएँगी;
+                    # Duration = 5 है तो 1st से 5th Year तक पाँच लाइनें।
                     FEE2_DB_SOURCE_MAP = {
                         "Academic Batch(20XX-XX)*": "Admission Session",
                         "Course-Code*": "Subject Code",
                         "Course Duration in year (N) *": "Duration",
-                        "Course Academic Year*": "Current Year",
                         "Course Name*": "Degree",
                         "Branch Name*": "Branch",
                     }
                     fee2_autofill_df = build_format_rows_from_admission_db(
                         fee2_db_source, FEE_FORMAT_COLUMNS, FEE2_DB_SOURCE_MAP,
-                        default_values={"Institute Name*": custom_header_1}
+                        default_values={"Institute Name*": custom_header_1},
+                        duration_source_col="Duration",
+                        year_output_col="Course Academic Year*"
                     )
 
                     render_p4_upload_master_format(
@@ -2894,16 +2941,19 @@ else:
                         _cat_mask = fee3_db_source["Category"].astype(str).str.strip().str.upper().str.contains(p4_fee3_category.upper(), na=False)
                         if _cat_mask.any():
                             fee3_db_source = fee3_db_source[_cat_mask].copy()
+                    # 🟢 आपकी नई शर्त: Course Year अब DB के "Current Year" से नहीं, बल्कि
+                    # Duration के हिसाब से अपने-आप बनेगा — जैसा Format 2 में है वैसे ही।
                     FEE3_DB_SOURCE_MAP = {
                         "Admission Year": "Admission Year",
-                        "Course Year": "Current Year",
                         "MPTAASC Course Code": "Subject Code",
                         "MPTAASC Course Name": "Degree",
                         "Branch Code": "Branch",
                     }
                     fee3_autofill_df = build_format_rows_from_admission_db(
                         fee3_db_source, FEE_CORRECTION_FORMAT_COLUMNS, FEE3_DB_SOURCE_MAP,
-                        default_values={"College Name": custom_header_1}
+                        default_values={"College Name": custom_header_1},
+                        duration_source_col="Duration",
+                        year_output_col="Course Year"
                     )
 
                     render_p4_upload_master_format(
