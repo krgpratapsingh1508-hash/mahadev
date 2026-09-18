@@ -442,7 +442,10 @@ def render_p4_upload_master_format(fmt_key, fmt_title, fmt_columns, store_file, 
                 st.caption(f"ℹ️ इन अतिरिक्त कॉलम्स को नज़रअंदाज़ किया गया (टेम्पलेट में नहीं हैं): {', '.join(extra_in_upload)}")
 
             st.write(f"अपलोड की गई फ़ाइल में कुल **{len(incoming_df)}** रिकॉर्ड मिले — नीचे प्रीव्यू देखें:")
-            st.dataframe(incoming_df, use_container_width=True, hide_index=True)
+            st.dataframe(
+                incoming_df, use_container_width=True, hide_index=True,
+                height=min((len(incoming_df) + 1) * 35 + 3, 8000)
+            )
 
             fmt_save_mode = st.radio(
                 "💾 इसे कैसे सेव करना है?",
@@ -520,7 +523,10 @@ def render_p4_upload_master_format(fmt_key, fmt_title, fmt_columns, store_file, 
     header_4 = f"Value: {filt_val}" if filt_val != "All Values" else ""
 
     st.write(f"फ़िल्टर के बाद कुल रिकॉर्ड: **{len(view_fmt_df)}**")
-    st.dataframe(view_fmt_df, use_container_width=True, hide_index=True)
+    st.dataframe(
+        view_fmt_df, use_container_width=True, hide_index=True,
+        height=min((len(view_fmt_df) + 1) * 35 + 3, 8000)
+    )
 
     header_lines = [h for h in [header_line_1, header_line_2, header_3, header_4] if h and h.strip()]
 
@@ -1585,7 +1591,7 @@ else:
                 st.write(f"ग्रिड में प्रदर्शित कुल छात्र रिकॉर्ड संख्या: **{len(final_p2_render)}**")
                 
                 # 🌟 स्क्रीन की एकमात्र मुख्य ग्रिड तालिका
-                st.dataframe(final_p2_render, use_container_width=True, hide_index=True)
+                st.dataframe(final_p2_render, use_container_width=True, hide_index=True, height=min((len(final_p2_render) + 1) * 35 + 3, 8000))
 
                 # ==================================================================
                 # 🖨️ Clean Variable-Based Iframe Print Engine (Dynamic Layout Fix)
@@ -1748,6 +1754,7 @@ else:
                     render_df, 
                     use_container_width=True, 
                     disabled=disabled_cols, 
+                    height=min((len(render_df) + 1) * 35 + 3, 8000),
                     column_config={
                         "Scholarship Status": st.column_config.SelectboxColumn(
                             "Scholarship Status", 
@@ -1877,6 +1884,7 @@ else:
                     render_df, 
                     use_container_width=True, 
                     disabled=disabled_cols, 
+                    height=min((len(render_df) + 1) * 35 + 3, 8000),
                     column_config={
                         "CCE Marks Obtained": st.column_config.TextColumn("CCE Marks (Max 20)"),
                         "CCE Attendance Status": st.column_config.SelectboxColumn("Attendance Status", options=["Present", "Absent", "Detained"], required=True)
@@ -2098,7 +2106,7 @@ else:
                         custom_header_4 = f"Value: {admf_filter_val}" if admf_filter_val != "All Values" else ""
 
                         st.write(f"फ़िल्टर के बाद कुल रिकॉर्ड: **{len(adm_fmt_view_df)}**")
-                        st.dataframe(adm_fmt_view_df[ADMISSION_FORMAT_COLUMNS], use_container_width=True, hide_index=True)
+                        st.dataframe(adm_fmt_view_df[ADMISSION_FORMAT_COLUMNS], use_container_width=True, hide_index=True, height=min((len(adm_fmt_view_df) + 1) * 35 + 3, 8000))
 
                         # ==================================================================
                         # 📥 Download — CSV और XLSX दोनों फॉर्मेट में, सिर्फ ऊपर चुना हुआ (फ़िल्टर्ड) डेटा
@@ -2586,7 +2594,8 @@ else:
                 st.write(f"📊 **Main File (Approved DB):** `{selected_main_panel_lbl}` | वर्तमान रिकॉर्ड्स संख्या: `{len(main_file_db)}`")
                 if not main_file_db.empty:
                     with st.expander("👁️ मुख्य फ़ाइल (Main File) का पूरा लाइव डेटा देखें", expanded=False):
-                        st.dataframe(main_file_db[[c for c in ["Admission Year", "Application Number", "Student Name", "Father Name", "Subject"] if c in main_file_db.columns]], use_container_width=True)
+                        _p6_preview_df = main_file_db[[c for c in ["Admission Year", "Application Number", "Student Name", "Father Name", "Subject"] if c in main_file_db.columns]]
+                        st.dataframe(_p6_preview_df, use_container_width=True, height=min((len(_p6_preview_df) + 1) * 35 + 3, 8000))
                 else:
                     st.warning("⚠️ इस चयनित पैनल में वर्तमान में कोई स्वीकृत डेटा उपलब्ध नहीं है।")
 
@@ -2778,7 +2787,8 @@ else:
                                 st.caption("नीचे दी गई तालिका दिखा रही है कि अप्रूव करने पर मेन फ़ाइल में डेटा किस प्रकार अपडेट होकर सेव होगा:")
                                 
                                 preview_display_cols = list(set(["Admission Year", main_match_key, "Student Name", "Father Name", "Target Panel Visibility"] + anya_return_cols))
-                                st.dataframe(final_preview_df[[c for c in preview_display_cols if c in final_preview_df.columns]], use_container_width=True)
+                                _p6_final_preview = final_preview_df[[c for c in preview_display_cols if c in final_preview_df.columns]]
+                                st.dataframe(_p6_final_preview, use_container_width=True, height=min((len(_p6_final_preview) + 1) * 35 + 3, 8000))
                                 
                                 # ----------------------------------------------------------------------
                                 # 🚀 Step 4: Finalize & Precision Approve
@@ -2986,7 +2996,7 @@ else:
                 # 🟢 एरर फिक्स: डुप्लिकेट कॉलम को डिलीट करने के लिए यह लाइन यहाँ जोड़ें
                 display_ready_df = display_ready_df.loc[:, ~display_ready_df.columns.duplicated()].copy()
             
-                st.dataframe(display_ready_df, use_container_width=True, hide_index=True)
+                st.dataframe(display_ready_df, use_container_width=True, hide_index=True, height=min((len(display_ready_df) + 1) * 35 + 3, 8000))
                 
                 st.download_button(
                     label=f"📥 Download Selected Dashboard Report Snapshot (CSV)",
@@ -3496,7 +3506,7 @@ else:
                 else:
                     if st.session_state.admin_lock_state:
                         # लॉक मोड: केवल डेटा व्यू करने के लिए (Read-Only)
-                        st.dataframe(ordered_db_display, use_container_width=True, hide_index=True)
+                        st.dataframe(ordered_db_display, use_container_width=True, hide_index=True, height=min((len(ordered_db_display) + 1) * 35 + 3, 8000))
                     else:
                         # अनलॉक मोड: ग्रिड एडिटिंग और रो डिलीट करने के लिए एक्टिवेट
                         st.info("🔓 **एडिट और डिलीट मोड सक्रिय:** आप सेल पर डबल-क्लिक करके डेटा बदल सकते हैं। किसी रो को सिलेक्ट कर कीबोर्ड से Delete बटन दबाकर रो हटा सकते हैं।")
@@ -3621,7 +3631,8 @@ else:
                             st.dataframe(
                                 ordered_db_display, 
                                 use_container_width=True, 
-                                hide_index=True
+                                hide_index=True,
+                                height=min((len(ordered_db_display) + 1) * 35 + 3, 8000)
                             )
                             edited_master_db = ordered_db_display
                         else:
@@ -3632,6 +3643,7 @@ else:
                                 disabled=disabled_fields,
                                 hide_index=True,
                                 num_rows="dynamic",
+                                height=min((len(ordered_db_display) + 1) * 35 + 3, 8000),
                                 key="p8_supreme_master_live_editor_grid"
                             )
                         
@@ -3776,6 +3788,7 @@ else:
                                     sub_mapping_df,
                                     use_container_width=True,
                                     disabled=True if is_grid_disabled else ["Subject Name"], # लॉक होने पर पूरी टेबल फ्रीज हो जाएगी
+                                    height=min((len(sub_mapping_df) + 1) * 35 + 3, 8000),
                                     column_config={
                                         "Course Duration (Years)": st.column_config.SelectboxColumn(
                                             "Select Duration",
