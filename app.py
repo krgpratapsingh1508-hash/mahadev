@@ -450,7 +450,27 @@ def calc_total_fee_columns(df, calc_groups):
         df[total_col] = numeric_sum.apply(_format_total)
     return df
 
-def render_p4_upload_master_format(fmt_key, fmt_title, fmt_columns, store_file, header_line_1, header_line_2, sync_column_groups=None, calc_column_groups=None):
+def apply_college_type_zero(df, college_type, boys_columns, girls_columns):
+    """
+    🟢 College Type के हिसाब से Boys या Girls की Fees को 0 कर देता है:
+    - "Boys College" चुना → सभी Girls वाले कॉलम 0
+    - "Girls College" चुना → सभी Boys वाले कॉलम 0
+    - "Both (Co-Ed)" या कुछ न चुना → कोई बदलाव नहीं (दोनों का डेटा जैसा है वैसा रहेगा)
+    """
+    if not college_type or college_type.strip().lower().startswith("both"):
+        return df
+    df = df.copy()
+    if college_type.strip().lower().startswith("boys"):
+        target_cols = [c for c in (girls_columns or []) if c in df.columns]
+    elif college_type.strip().lower().startswith("girls"):
+        target_cols = [c for c in (boys_columns or []) if c in df.columns]
+    else:
+        target_cols = []
+    for c in target_cols:
+        df[c] = "0"
+    return df
+
+def render_p4_upload_master_format(fmt_key, fmt_title, fmt_columns, store_file, header_line_1, header_line_2, sync_column_groups=None, calc_column_groups=None, college_type=None, boys_columns=None, girls_columns=None):
     st.info(
         f"📌 यह '{fmt_title}' एक अलग मास्टर टेबल है (स्टूडेंट डेटाबेस से सीधे जुड़ी नहीं है)। "
         "पहले नीचे से खाली टेम्पलेट डाउनलोड करें, उसे Excel/CSV में भरें, फिर उसी फ़ाइल को यहाँ "
@@ -493,6 +513,7 @@ def render_p4_upload_master_format(fmt_key, fmt_title, fmt_columns, store_file, 
 
             incoming_df = incoming_df[fmt_columns].astype(str)
             incoming_df = sync_equal_fee_columns(incoming_df, sync_column_groups)
+            incoming_df = apply_college_type_zero(incoming_df, college_type, boys_columns, girls_columns)
             incoming_df = calc_total_fee_columns(incoming_df, calc_column_groups)
 
             if missing_in_upload:
@@ -2331,6 +2352,31 @@ else:
                         "🔗 **ऑटो-सिंक चालू है:** हर ग्रुप (जैसे Tution Fees for ST/SC/OBC Boys) में से जिस भी एक कॉलम में "
                         "वैल्यू भरेंगे, वही वैल्यू बाकी दोनों कॉलम्स में भी अपने-आप कॉपी हो जाएगी — तीनों Category में एक जैसी Fees रहेंगी।"
                     )
+
+                    # 🟢 आपकी नई माँग: College Type पूछें — उसी हिसाब से Boys या Girls का डेटा
+                    # अपने-आप 0 हो जाएगा (जो अपलोड होगा, सिर्फ उसी बैच के लिए लागू होगा)
+                    p4_fee2_college_type = st.radio(
+                        "🏫 यह College किस टाइप का है?",
+                        options=["Both (Co-Ed)", "Boys College", "Girls College"],
+                        key="p4_fee2_college_type_radio",
+                        horizontal=True
+                    )
+                    if p4_fee2_college_type == "Boys College":
+                        st.caption("ℹ️ आपने 'Boys College' चुना है — अपलोड होने वाले डेटा में सभी Girls वाली Fees अपने-आप **0** हो जाएँगी।")
+                    elif p4_fee2_college_type == "Girls College":
+                        st.caption("ℹ️ आपने 'Girls College' चुना है — अपलोड होने वाले डेटा में सभी Boys वाली Fees अपने-आप **0** हो जाएँगी।")
+
+                    FEE_FORMAT_BOYS_COLUMNS = [
+                        "Tution Fees for ST Boys*", "Exam Fees for ST Boys*", "Other Non-refundable Fees for ST Boys*",
+                        "Tution Fees for SC Boys*", "Exam Fees for SC Boys*", "Other Non-refundable Fees for SC Boys*",
+                        "Tution Fees for OBC Boys*", "Exam Fees for OBC Boys*", "Other Non-refundable Fees for OBC Boys*"
+                    ]
+                    FEE_FORMAT_GIRLS_COLUMNS = [
+                        "Tution Fees for ST Girls*", "Exam Fees for ST Girls*", "Other Non-refundable Fees for ST Girls*",
+                        "Tution Fees for SC Girls*", "Exam Fees for SC Girls*", "Other Non-refundable Fees for SC Girls*",
+                        "Tution Fees for OBC Girls*", "Exam Fees for OBC Girls*", "Other Non-refundable Fees for OBC Girls*"
+                    ]
+
                     render_p4_upload_master_format(
                         fmt_key="p4fee2",
                         fmt_title="Fee Format",
@@ -2338,7 +2384,10 @@ else:
                         store_file=FEE_FORMAT_FILE,
                         header_line_1=custom_header_1,
                         header_line_2=custom_header_2,
-                        sync_column_groups=FEE_FORMAT_SYNC_GROUPS
+                        sync_column_groups=FEE_FORMAT_SYNC_GROUPS,
+                        college_type=p4_fee2_college_type,
+                        boys_columns=FEE_FORMAT_BOYS_COLUMNS,
+                        girls_columns=FEE_FORMAT_GIRLS_COLUMNS
                     )
 
                 elif file_format_type == "3. Fee Correction Format":
@@ -2405,6 +2454,32 @@ else:
                         "Correct Tution Fees + Correct Exam Fees + Correct Other Non-refundable Fees जोड़कर अपने-आप बन जाएगी।"
                     )
 
+                    # 🟢 आपकी नई माँग: College Type पूछें — उसी हिसाब से Boys या Girls का डेटा
+                    # अपने-आप 0 हो जाएगा (जो अपलोड होगा, सिर्फ उसी बैच के लिए लागू होगा)
+                    p4_fee3_college_type = st.radio(
+                        "🏫 यह College किस टाइप का है?",
+                        options=["Both (Co-Ed)", "Boys College", "Girls College"],
+                        key="p4_fee3_college_type_radio",
+                        horizontal=True
+                    )
+                    if p4_fee3_college_type == "Boys College":
+                        st.caption("ℹ️ आपने 'Boys College' चुना है — अपलोड होने वाले डेटा में सभी Girls वाली Fees (Wrong/Correct/Total) अपने-आप **0** हो जाएँगी।")
+                    elif p4_fee3_college_type == "Girls College":
+                        st.caption("ℹ️ आपने 'Girls College' चुना है — अपलोड होने वाले डेटा में सभी Boys वाली Fees (Wrong/Correct/Total) अपने-आप **0** हो जाएँगी।")
+
+                    FEE3_BOYS_COLUMNS = [
+                        f"Wrong Tution Fees ({cat} Boys)", f"Correct Tution Fees ({cat} Boys)",
+                        f"Wrong Exam Fees ({cat} Boys)", f"Correct Exam Fees ({cat} Boys)",
+                        f"Wrong Other Non-refundable Fees ({cat} Boys)", f"Correct Other Non-refundable Fees ({cat} Boys)",
+                        f"Total Fees ({cat} Boys)"
+                    ]
+                    FEE3_GIRLS_COLUMNS = [
+                        f"Wrong Tution Fees ({cat} Girls)", f"Correct Tution Fees ({cat} Girls)",
+                        f"Wrong Exam Fees ({cat} Girls)", f"Correct Exam Fees ({cat} Girls)",
+                        f"Wrong Other Non-refundable Fees ({cat} Girls)", f"Correct Other Non-refundable Fees ({cat} Girls)",
+                        f"Total Fees ({cat} Girls)"
+                    ]
+
                     render_p4_upload_master_format(
                         fmt_key=f"p4fee3{p4_fee3_category.lower()}",
                         fmt_title=fee3_title,
@@ -2412,7 +2487,10 @@ else:
                         store_file=fee3_store_file,
                         header_line_1=custom_header_1,
                         header_line_2=fee3_header_2,
-                        calc_column_groups=FEE3_CALC_GROUPS
+                        calc_column_groups=FEE3_CALC_GROUPS,
+                        college_type=p4_fee3_college_type,
+                        boys_columns=FEE3_BOYS_COLUMNS,
+                        girls_columns=FEE3_GIRLS_COLUMNS
                     )
 
                 st.markdown('</div>', unsafe_allow_html=True)
