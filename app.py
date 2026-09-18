@@ -536,10 +536,9 @@ def render_p4_upload_master_format(fmt_key, fmt_title, fmt_columns, store_file, 
     st.subheader(f"📊 सेव किया हुआ '{fmt_title}' डेटा")
 
     if saved_fmt_df.empty:
-        st.warning(f"⚠️ अभी तक '{fmt_title}' में कोई डेटा सेव नहीं हुआ है।")
-        return
-
-    st.success(f"✅ कुल {len(saved_fmt_df)} रिकॉर्ड्स इस फॉर्मेट में मौजूद हैं।")
+        st.warning(f"⚠️ अभी तक '{fmt_title}' में कोई डेटा सेव नहीं हुआ है, लेकिन इसके सभी कॉलम नीचे देखे जा सकते हैं।")
+    else:
+        st.success(f"✅ कुल {len(saved_fmt_df)} रिकॉर्ड्स इस फॉर्मेट में मौजूद हैं।")
 
     fcol1, fcol2 = st.columns(2)
     with fcol1:
