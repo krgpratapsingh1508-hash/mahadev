@@ -36,6 +36,11 @@ DYNAMIC_LISTS_FILE = "p1_dynamic_lists_schema.json"
 # 🟢 ADD THIS MISSING LINE HERE:
 NOTICE_FILE = "notice_board_schema.json" 
 
+# 🟢 P4 FEE FORMAT (Format 2) और FEE CORRECTION FORMAT (Format 3 - SC) की मास्टर डेटा फ़ाइलें
+# (यह स्टूडेंट डेटाबेस से अलग हैं — Institute/Course/Branch स्तर की Fee जानकारी यहाँ सेव होती है)
+FEE_FORMAT_FILE = "p4_fee_format_master.csv"
+FEE_CORRECTION_SC_FORMAT_FILE = "p4_fee_correction_sc_format.csv"
+
 # 🟢 P12 SYLLABUS MANAGER: subject-wise syllabus (file ya link) yahin store hoga
 SYLLABUS_FILE = "subject_syllabus_schema.json"
 SYLLABUS_UPLOAD_DIR = "syllabus_uploads"
@@ -379,6 +384,261 @@ def load_stage_data():
 
 def save_stage_data(df_to_save):
     df_to_save.fillna("").astype(str).to_csv(STAGE_FILE, index=False)
+
+# ==========================================================
+# 🟢 P4 GENERIC "UPLOAD-BASED MASTER FORMAT" रेंडरर
+# ----------------------------------------------------------
+# यह फ़ंक्शन Fee Format (Format 2), Fee Correction Format (Format 3)
+# जैसे किसी भी "टेम्पलेट डाउनलोड करो → भरो → अपलोड करो → सेव/व्यू/फ़िल्टर/
+# डाउनलोड/प्रिंट करो" वाले फॉर्मेट के लिए दोबारा इस्तेमाल होता है, ताकि हर
+# नए फॉर्मेट के लिए अलग से सैकड़ों लाइन कोड न लिखनी पड़े।
+# ==========================================================
+def render_p4_upload_master_format(fmt_key, fmt_title, fmt_columns, store_file, header_line_1, header_line_2):
+    st.info(
+        f"📌 यह '{fmt_title}' एक अलग मास्टर टेबल है (स्टूडेंट डेटाबेस से सीधे जुड़ी नहीं है)। "
+        "पहले नीचे से खाली टेम्पलेट डाउनलोड करें, उसे Excel/CSV में भरें, फिर उसी फ़ाइल को यहाँ "
+        "वापस अपलोड करके 'Save' कर दें।"
+    )
+
+    # 1️⃣ खाली टेम्पलेट डाउनलोड (सिर्फ हेडर/कॉलम नाम, कोई डेटा नहीं)
+    blank_template_df = pd.DataFrame(columns=fmt_columns)
+    st.download_button(
+        label=f"📥 Download Blank {fmt_title} Template (CSV)",
+        data=blank_template_df.to_csv(index=False).encode("utf-8"),
+        file_name=f"{fmt_key}_blank_template.csv",
+        mime="text/csv",
+        use_container_width=True,
+        key=f"{fmt_key}_blank_template_btn"
+    )
+
+    # 2️⃣ भरी हुई फ़ाइल अपलोड करें (CSV या Excel दोनों चलेंगी)
+    uploaded_fmt_file = st.file_uploader(
+        f"📤 भरा हुआ '{fmt_title}' यहाँ अपलोड करें (CSV या XLSX):",
+        type=["csv", "xlsx"],
+        key=f"{fmt_key}_uploader"
+    )
+
+    if uploaded_fmt_file is not None:
+        try:
+            if uploaded_fmt_file.name.lower().endswith(".xlsx"):
+                incoming_df = pd.read_excel(uploaded_fmt_file, dtype=str)
+            else:
+                incoming_df = pd.read_csv(uploaded_fmt_file, dtype=str)
+            incoming_df.columns = [str(c).strip() for c in incoming_df.columns]
+            incoming_df = incoming_df.fillna("")
+
+            # जो कॉलम टेम्पलेट में चाहिए लेकिन फ़ाइल में नहीं मिले, वो खाली जोड़ दें
+            missing_in_upload = [c for c in fmt_columns if c not in incoming_df.columns]
+            for mcol in missing_in_upload:
+                incoming_df[mcol] = ""
+            # जो एक्स्ट्रा कॉलम फ़ाइल में हैं पर टेम्पलेट में नहीं, उन्हें नज़रअंदाज़ करें
+            extra_in_upload = [c for c in incoming_df.columns if c not in fmt_columns]
+
+            incoming_df = incoming_df[fmt_columns].astype(str)
+
+            if missing_in_upload:
+                st.warning(f"⚠️ इन कॉलम्स की वैल्यू अपलोड की गई फ़ाइल में नहीं मिलीं, इसलिए खाली रखी गई हैं: {', '.join(missing_in_upload)}")
+            if extra_in_upload:
+                st.caption(f"ℹ️ इन अतिरिक्त कॉलम्स को नज़रअंदाज़ किया गया (टेम्पलेट में नहीं हैं): {', '.join(extra_in_upload)}")
+
+            st.write(f"अपलोड की गई फ़ाइल में कुल **{len(incoming_df)}** रिकॉर्ड मिले — नीचे प्रीव्यू देखें:")
+            st.dataframe(incoming_df, use_container_width=True, hide_index=True)
+
+            fmt_save_mode = st.radio(
+                "💾 इसे कैसे सेव करना है?",
+                options=["मौजूदा डेटा में जोड़ें (Append)", "मौजूदा डेटा को पूरी तरह बदल दें (Replace All)"],
+                key=f"{fmt_key}_save_mode_radio",
+                horizontal=True
+            )
+
+            if st.button(f"✅ इस डेटा को {fmt_title} में स्थायी रूप से सेव करें", type="primary", use_container_width=True, key=f"{fmt_key}_save_btn"):
+                if os.path.exists(store_file) and os.path.getsize(store_file) > 0:
+                    existing_fmt_df = pd.read_csv(store_file, dtype=str).fillna("")
+                    for mcol in fmt_columns:
+                        if mcol not in existing_fmt_df.columns:
+                            existing_fmt_df[mcol] = ""
+                    existing_fmt_df = existing_fmt_df[fmt_columns].astype(str)
+                else:
+                    existing_fmt_df = pd.DataFrame(columns=fmt_columns)
+
+                if fmt_save_mode.startswith("मौजूदा डेटा को"):
+                    final_fmt_df = incoming_df.copy()
+                else:
+                    final_fmt_df = pd.concat([existing_fmt_df, incoming_df], ignore_index=True)
+                    final_fmt_df = final_fmt_df.drop_duplicates(keep="last").reset_index(drop=True)
+
+                final_fmt_df.to_csv(store_file, index=False)
+                st.success(f"🎉 सफलता! कुल {len(final_fmt_df)} रिकॉर्ड्स '{fmt_title}' में स्थायी रूप से सेव हो गए हैं।")
+                st.balloons()
+                st.rerun()
+        except Exception as fmt_upload_err:
+            st.error(f"❌ फ़ाइल पढ़ने/सेव करने में तकनीकी समस्या आई: {fmt_upload_err}")
+
+    st.markdown("---")
+
+    # 3️⃣ पहले से सेव किया हुआ डेटा दिखाएँ (View + Filter + Download + Print)
+    if os.path.exists(store_file) and os.path.getsize(store_file) > 0:
+        try:
+            saved_fmt_df = pd.read_csv(store_file, dtype=str).fillna("")
+        except Exception:
+            saved_fmt_df = pd.DataFrame(columns=fmt_columns)
+    else:
+        saved_fmt_df = pd.DataFrame(columns=fmt_columns)
+
+    for mcol in fmt_columns:
+        if mcol not in saved_fmt_df.columns:
+            saved_fmt_df[mcol] = ""
+    saved_fmt_df = saved_fmt_df[fmt_columns].astype(str)
+
+    if "Sr. No." in fmt_columns:
+        saved_fmt_df["Sr. No."] = range(1, len(saved_fmt_df) + 1)
+
+    st.subheader(f"📊 सेव किया हुआ '{fmt_title}' डेटा")
+
+    if saved_fmt_df.empty:
+        st.warning(f"⚠️ अभी तक '{fmt_title}' में कोई डेटा सेव नहीं हुआ है।")
+        return
+
+    st.success(f"✅ कुल {len(saved_fmt_df)} रिकॉर्ड्स इस फॉर्मेट में मौजूद हैं।")
+
+    fcol1, fcol2 = st.columns(2)
+    with fcol1:
+        filter_col_options = [c for c in fmt_columns if c != "Sr. No."]
+        filt_col = st.selectbox("Select Column Filter Target:", options=filter_col_options, key=f"{fmt_key}_filter_col_select")
+    with fcol2:
+        filt_val_options = ["All Values"] + sorted([
+            v for v in saved_fmt_df[filt_col].astype(str).str.strip().unique() if v and v.lower() != "nan"
+        ])
+        filt_val = st.selectbox(f"Filter Value for '{filt_col}':", options=filt_val_options, key=f"{fmt_key}_filter_val_select")
+
+    if filt_val != "All Values":
+        view_fmt_df = saved_fmt_df[saved_fmt_df[filt_col].astype(str).str.strip() == filt_val].copy()
+    else:
+        view_fmt_df = saved_fmt_df.copy()
+
+    header_3 = f"Column: {filt_col}"
+    header_4 = f"Value: {filt_val}" if filt_val != "All Values" else ""
+
+    st.write(f"फ़िल्टर के बाद कुल रिकॉर्ड: **{len(view_fmt_df)}**")
+    st.dataframe(view_fmt_df, use_container_width=True, hide_index=True)
+
+    header_lines = [h for h in [header_line_1, header_line_2, header_3, header_4] if h and h.strip()]
+
+    dcol1, dcol2 = st.columns(2)
+    with dcol1:
+        csv_table_text = view_fmt_df.to_csv(index=False)
+        csv_data = ("\n".join(header_lines) + "\n\n" + csv_table_text) if header_lines else csv_table_text
+        st.download_button(
+            label="📥 CSV Download करें",
+            data=csv_data.encode("utf-8"),
+            file_name=f"{fmt_key}_export.csv",
+            mime="text/csv",
+            use_container_width=True,
+            key=f"{fmt_key}_download_csv_btn"
+        )
+    with dcol2:
+        from openpyxl.styles import Font as _FmtFont, Alignment as _FmtAlignment
+        xlsx_buffer = io.BytesIO()
+        start_row = len(header_lines) + 1 if header_lines else 0
+        sheet_name_safe = fmt_title[:30] if fmt_title else "Sheet1"
+        with pd.ExcelWriter(xlsx_buffer, engine="openpyxl") as fmt_writer:
+            view_fmt_df.to_excel(fmt_writer, index=False, sheet_name=sheet_name_safe, startrow=start_row)
+            if header_lines:
+                fmt_ws = fmt_writer.sheets[sheet_name_safe]
+                ncols = len(fmt_columns)
+                for _i, _line in enumerate(header_lines, start=1):
+                    fmt_ws.merge_cells(start_row=_i, start_column=1, end_row=_i, end_column=ncols)
+                    _cell = fmt_ws.cell(row=_i, column=1, value=_line)
+                    _cell.font = _FmtFont(bold=True, size=12 if _i <= 2 else 10)
+                    _cell.alignment = _FmtAlignment(horizontal="center")
+        st.download_button(
+            label="📥 XLSX Download करें",
+            data=xlsx_buffer.getvalue(),
+            file_name=f"{fmt_key}_export.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
+            key=f"{fmt_key}_download_xlsx_btn"
+        )
+
+    # 🖨️ Print Engine (Admission Format जैसा ही iframe print system)
+    print_columns_list = list(view_fmt_df.columns)
+    print_records_list = view_fmt_df.to_dict(orient="records")
+
+    print_headers_html = "".join([f"<th style='border:1px solid #111; padding:6px; background:#f2f2f2; font-weight:bold; text-align:center;'>{col}</th>" for col in print_columns_list])
+
+    print_rows_html = ""
+    for row in print_records_list:
+        print_rows_html += "<tr>"
+        for col in print_columns_list:
+            val = str(row.get(col, "")).replace("`", "'").replace("\n", " ")
+            print_rows_html += f"<td style='border:1px solid #111; padding:5px; text-align:left;'>{val}</td>"
+        print_rows_html += "</tr>"
+
+    print_clean_html = f"""
+    <html>
+    <head>
+        <style>
+            @page {{ size: A4 landscape; margin: 8mm; }}
+            body {{ font-family: Arial, sans-serif; margin: 0; padding: 0; color: #000; }}
+            .custom-print-header {{
+                width: 100%; border: 2px solid #1465de; background-color: #f4f8ff;
+                padding: 15px; margin-bottom: 20px; border-radius: 6px;
+                box-sizing: border-box; text-align: center;
+            }}
+            .h-line-1 {{ font-size: 16px; font-weight: bold; color: #1465de; margin-bottom: 5px; }}
+            .h-line-2 {{ font-size: 14px; font-weight: bold; color: #333; margin-bottom: 5px; }}
+            .h-line-3 {{ font-size: 12px; font-style: italic; color: #555; }}
+            .h-line-4 {{ font-size: 12px; font-style: italic; color: #1465de; margin-top: 3px; }}
+            table {{ width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 10px; }}
+        </style>
+    </head>
+    <body>
+        <div class="custom-print-header">
+            <div class="h-line-1">{header_line_1}</div>
+            <div class="h-line-2">{header_line_2}</div>
+            <div class="h-line-3">{header_3}</div>
+            {f'<div class="h-line-4">{header_4}</div>' if header_4 and header_4.strip() else ''}
+        </div>
+        <table>
+            <thead><tr>{print_headers_html}</tr></thead>
+            <tbody>{print_rows_html}</tbody>
+        </table>
+    </body>
+    </html>
+    """
+
+    print_safe_html_string = print_clean_html.replace("\\", "\\\\").replace("`", "'").replace("\n", " ").replace("\r", "")
+    print_js_fn_name = "print_" + "".join(ch for ch in fmt_key if ch.isalnum())
+
+    components.html(
+        f"""
+        <html>
+        <body>
+            <script>
+            function {print_js_fn_name}() {{
+                var iframe = window.parent.document.createElement('iframe');
+                iframe.style.position = 'fixed'; iframe.style.right = '0'; iframe.style.bottom = '0';
+                iframe.style.width = '0'; iframe.style.height = '0'; iframe.style.border = '0';
+                window.parent.document.body.appendChild(iframe);
+
+                var doc = iframe.contentWindow.document;
+                doc.open(); doc.write(`{print_safe_html_string}`); doc.close();
+                iframe.contentWindow.focus(); iframe.contentWindow.print();
+
+                setTimeout(function() {{ window.parent.document.body.removeChild(iframe); }}, 1000);
+            }}
+            </script>
+            <button onclick="{print_js_fn_name}()" style="
+                width: 100%; background-color: #1465de; color: white; padding: 14px;
+                border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 16px;
+                font-family: sans-serif; box-shadow: 0 4px 6px rgba(20, 101, 222, 0.2);">
+                🖨️ Click Here to Print {fmt_title} Report
+            </button>
+        </body>
+        </html>
+        """,
+        height=70
+    )
 
 def get_image_base64(path):
     if os.path.exists(path):
@@ -1661,7 +1921,8 @@ else:
                     "📄 Select File Format Type:",
                     options=[
                         "1. Upload Admission Format",
-                        "2. Upload Fee Format"
+                        "2. Upload Fee Format",
+                        "3. Fee Correction Format (SC)"
                     ],
                     key="p4_file_format_type_selector"
                 )
@@ -1683,7 +1944,12 @@ else:
 
                 # 🔄 Header 2 ऑटो-सिंक — जब भी ऊपर "Select File Format Type" बदलेगा,
                 # बॉक्स 2 अपने आप उसी फॉर्मेट के नाम से रीफ़्रेश हो जाएगा
-                default_header_2 = "ADMISSION FORMAT REPORT SHEET" if file_format_type.startswith("1.") else "FEE FORMAT REPORT SHEET"
+                if file_format_type.startswith("1."):
+                    default_header_2 = "ADMISSION FORMAT REPORT SHEET"
+                elif file_format_type.startswith("2."):
+                    default_header_2 = "FEE FORMAT REPORT SHEET"
+                else:
+                    default_header_2 = "FEE CORRECTION FORMAT REPORT SHEET (SC)"
 
                 _p4h2_track_key = "_p4_h2_last_format"
                 if st.session_state.get(_p4h2_track_key) != file_format_type:
@@ -1965,10 +2231,57 @@ else:
                         )
 
                 elif file_format_type == "2. Upload Fee Format":
-                    st.info(
-                        "⚙️ Fee Format के लिए कॉलम लिस्ट अभी तय नहीं है — कृपया बताएं कि इसमें कौन-कौन से "
-                        "कॉलम चाहिए ताकि यह फीचर भी Admission Format जैसा (validate + save to live database, "
-                        "और ऊपर वाले Print Header Customizer के साथ प्रिंट) बनाया जा सके।"
+                    FEE_FORMAT_COLUMNS = [
+                        "Sr. No.", "Academic Batch(20XX-XX)*", "Institute Code*", "Course-Code*", "Branch-Code*",
+                        "Course Duration in year (N) *", "Course Academic Year*",
+                        "Tution Fees for ST Boys*", "Exam Fees for ST Boys*", "Other Non-refundable Fees for ST Boys*",
+                        "Tution Fees for ST Girls*", "Exam Fees for ST Girls*", "Other Non-refundable Fees for ST Girls*",
+                        "Tution Fees for SC Boys*", "Exam Fees for SC Boys*", "Other Non-refundable Fees for SC Boys*",
+                        "Tution Fees for SC Girls*", "Exam Fees for SC Girls*", "Other Non-refundable Fees for SC Girls*",
+                        "Institute Name*", "Course Name*", "Branch Name*",
+                        "Tution Fees for OBC Boys*", "Exam Fees for OBC Boys*", "Other Non-refundable Fees for OBC Boys*",
+                        "Tution Fees for OBC Girls*", "Exam Fees for OBC Girls*", "Other Non-refundable Fees for OBC Girls*"
+                    ]
+                    render_p4_upload_master_format(
+                        fmt_key="p4fee2",
+                        fmt_title="Fee Format",
+                        fmt_columns=FEE_FORMAT_COLUMNS,
+                        store_file=FEE_FORMAT_FILE,
+                        header_line_1=custom_header_1,
+                        header_line_2=custom_header_2
+                    )
+
+                elif file_format_type == "3. Fee Correction Format (SC)":
+                    # 🟢 नोट: आपके दिए गए कॉलम में कुछ नाम दोहरे थे (जैसे "MPTAASC Course code" दो बार,
+                    # "Wrong Exam Fees" और "Wrong Other non refundable Fees" बिना Boys/Girls सफिक्स के दो-दो बार)।
+                    # चूँकि एक टेबल में दो कॉलम का नाम बिल्कुल एक जैसा नहीं हो सकता, इसलिए इन्हें बाकी
+                    # कॉलम्स जैसे ही साफ़ तरीके से यूनीक बना दिया गया है (नीचे कमेंट में देखें)। अगर आप कोई
+                    # अलग नाम चाहते हैं तो बता दीजिए, बदल देंगे।
+                    FEE_CORRECTION_SC_FORMAT_COLUMNS = [
+                        "Admission Year", "Course Year", "Institute Code",  # 🔧 "InSCiute code" → "Institute Code" (टाइपो ठीक किया)
+                        "College Name", "MPTAASC Course Code", "MPTAASC Course Name",
+                        "MPTAASC Branch Code",  # 🔧 दोहराए गए "MPTAASC Course code" को यूनीक बनाया
+                        "Branch Code",
+                        "Wrong Tution Fees (SC Boys)", "Correct Tution Fees (SC Boys)",
+                        "Wrong Exam Fees (SC Boys)",  # 🔧 सफिक्स जोड़ा (पहले सिर्फ "Wrong Exam Fees")
+                        "Correct Exam Fees (SC Boys)",
+                        "Wrong Other Non-refundable Fees (SC Boys)",  # 🔧 सफिक्स जोड़ा
+                        "Correct Other Non-refundable Fees (SC Boys)",
+                        "Total Fees (SC Boys)",
+                        "Wrong Tution Fees (SC Girls)", "Correct Tution Fees (SC Girls)",
+                        "Wrong Exam Fees (SC Girls)",  # 🔧 सफिक्स जोड़ा
+                        "Correct Exam Fees (SC Girls)",
+                        "Wrong Other Non-refundable Fees (SC Girls)",  # 🔧 सफिक्स जोड़ा
+                        "Correct Other Non-refundable Fees (SC Girls)",
+                        "Total Fees (SC Girls)"
+                    ]
+                    render_p4_upload_master_format(
+                        fmt_key="p4fee3sc",
+                        fmt_title="Fee Correction Format (SC)",
+                        fmt_columns=FEE_CORRECTION_SC_FORMAT_COLUMNS,
+                        store_file=FEE_CORRECTION_SC_FORMAT_FILE,
+                        header_line_1=custom_header_1,
+                        header_line_2=custom_header_2
                     )
 
                 st.markdown('</div>', unsafe_allow_html=True)
