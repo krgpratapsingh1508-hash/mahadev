@@ -451,6 +451,31 @@ def calc_total_fee_columns(df, calc_groups):
         df[total_col] = numeric_sum.apply(_format_total)
     return df
 
+def apply_fee_offsets(df, offset_groups):
+    """
+    🟢 जब Girls की किसी Fee की वैल्यू हमेशा Boys की उसी Fee में से एक तय रकम घटाकर
+    बननी हो (जैसे Girls Tuition Fee = Boys Tuition Fee - 200), तो यह फ़ंक्शन वह
+    कैलकुलेशन अपने-आप कर देता है — Girls वाला कॉलम हाथ से भरने की ज़रूरत नहीं।
+    offset_groups: [(boys_col/source_col, girls_col/target_col, offset_amount), ...]
+    (0 से नीचे न जाए, इसलिए घटाने के बाद न्यूनतम 0 पर रोक दिया जाता है)
+    """
+    if not offset_groups:
+        return df
+    df = df.copy()
+    for source_col, target_col, offset_amt in offset_groups:
+        if source_col not in df.columns or target_col not in df.columns:
+            continue
+        source_vals = pd.to_numeric(df[source_col], errors="coerce").fillna(0)
+        result_vals = (source_vals - offset_amt).clip(lower=0)
+
+        def _format_offset(v):
+            if v == int(v):
+                return str(int(v))
+            return str(v)
+
+        df[target_col] = result_vals.apply(_format_offset)
+    return df
+
 def apply_college_type_zero(df, college_type, boys_columns, girls_columns):
     """
     🟢 College Type के हिसाब से Boys या Girls की Fees को 0 कर देता है:
@@ -507,7 +532,7 @@ def build_format_rows_from_admission_db(db_df, out_columns, source_map, default_
             out_df[c] = ""
     return out_df[out_columns].astype(str)
 
-def render_p4_upload_master_format(fmt_key, fmt_title, fmt_columns, store_file, header_line_1, header_line_2, sync_column_groups=None, calc_column_groups=None, college_type=None, boys_columns=None, girls_columns=None, red_columns=None, green_columns=None, db_autofill_df=None, allow_edit=True):
+def render_p4_upload_master_format(fmt_key, fmt_title, fmt_columns, store_file, header_line_1, header_line_2, sync_column_groups=None, calc_column_groups=None, college_type=None, boys_columns=None, girls_columns=None, red_columns=None, green_columns=None, db_autofill_df=None, allow_edit=True, offset_column_groups=None, post_save_hook=None):
     st.info(
         f"📌 यह '{fmt_title}' एक अलग मास्टर टेबल है (स्टूडेंट डेटाबेस से सीधे जुड़ी नहीं है)। "
         "पहले नीचे से खाली टेम्पलेट डाउनलोड करें, उसे Excel/CSV में भरें, फिर उसी फ़ाइल को यहाँ "
@@ -550,6 +575,7 @@ def render_p4_upload_master_format(fmt_key, fmt_title, fmt_columns, store_file, 
 
             incoming_df = incoming_df[fmt_columns].astype(str)
             incoming_df = sync_equal_fee_columns(incoming_df, sync_column_groups)
+            incoming_df = apply_fee_offsets(incoming_df, offset_column_groups)
             incoming_df = apply_college_type_zero(incoming_df, college_type, boys_columns, girls_columns)
             incoming_df = calc_total_fee_columns(incoming_df, calc_column_groups)
 
@@ -588,6 +614,8 @@ def render_p4_upload_master_format(fmt_key, fmt_title, fmt_columns, store_file, 
                     final_fmt_df = final_fmt_df.drop_duplicates(keep="last").reset_index(drop=True)
 
                 final_fmt_df.to_csv(store_file, index=False)
+                if post_save_hook:
+                    post_save_hook(final_fmt_df)
                 st.success(f"🎉 सफलता! कुल {len(final_fmt_df)} रिकॉर्ड्स '{fmt_title}' में स्थायी रूप से सेव हो गए हैं।")
                 st.balloons()
                 st.rerun()
@@ -619,6 +647,7 @@ def render_p4_upload_master_format(fmt_key, fmt_title, fmt_columns, store_file, 
             if st.button("🗄️ Admission Panel से डेटा भरकर सेव करें", use_container_width=True, key=f"{fmt_key}_autofill_btn"):
                 auto_df = db_autofill_df.copy()
                 auto_df = sync_equal_fee_columns(auto_df, sync_column_groups)
+                auto_df = apply_fee_offsets(auto_df, offset_column_groups)
                 auto_df = apply_college_type_zero(auto_df, college_type, boys_columns, girls_columns)
                 auto_df = calc_total_fee_columns(auto_df, calc_column_groups)
                 if os.path.exists(store_file) and os.path.getsize(store_file) > 0 and not auto_mode.startswith("मौजूदा डेटा को"):
@@ -633,6 +662,8 @@ def render_p4_upload_master_format(fmt_key, fmt_title, fmt_columns, store_file, 
                 if "Sr. No." in fmt_columns:
                     final_auto_df["Sr. No."] = range(1, len(final_auto_df) + 1)
                 final_auto_df.to_csv(store_file, index=False)
+                if post_save_hook:
+                    post_save_hook(final_auto_df)
                 st.success(f"🎉 Admission Panel से कुल {len(final_auto_df)} रिकॉर्ड्स '{fmt_title}' में सेव हो गए।")
                 st.rerun()
 
@@ -654,9 +685,10 @@ def render_p4_upload_master_format(fmt_key, fmt_title, fmt_columns, store_file, 
 
     # 🟢 अगर पुराना सेव किया हुआ डेटा किसी वजह से Sync-ग्रुप या Total Fees कैलकुलेशन में
     # मेल नहीं खाता, तो यहाँ भी उसे ठीक करके, ज़रूरत पड़ने पर स्टोर फ़ाइल में वापस अपडेट कर दें
-    if sync_column_groups or calc_column_groups:
+    if sync_column_groups or calc_column_groups or offset_column_groups:
         before_sync_df = saved_fmt_df.copy()
         saved_fmt_df = sync_equal_fee_columns(saved_fmt_df, sync_column_groups)
+        saved_fmt_df = apply_fee_offsets(saved_fmt_df, offset_column_groups)
         saved_fmt_df = calc_total_fee_columns(saved_fmt_df, calc_column_groups)
         if not saved_fmt_df.equals(before_sync_df):
             saved_fmt_df.to_csv(store_file, index=False)
@@ -763,10 +795,13 @@ def render_p4_upload_master_format(fmt_key, fmt_title, fmt_columns, store_file, 
                                 save_edit_df[mcol] = ""
                         save_edit_df = save_edit_df[fmt_columns].astype(str)
                         save_edit_df = sync_equal_fee_columns(save_edit_df, sync_column_groups)
+                        save_edit_df = apply_fee_offsets(save_edit_df, offset_column_groups)
                         save_edit_df = calc_total_fee_columns(save_edit_df, calc_column_groups)
                         if "Sr. No." in fmt_columns:
                             save_edit_df["Sr. No."] = range(1, len(save_edit_df) + 1)
                         save_edit_df.to_csv(store_file, index=False)
+                        if post_save_hook:
+                            post_save_hook(save_edit_df)
                         st.success(f"✅ बदलाव सेव हो गए — अब '{fmt_title}' में कुल {len(save_edit_df)} रिकॉर्ड्स हैं।")
                         st.rerun()
                     except Exception as edit_err:
@@ -2589,14 +2624,33 @@ else:
                     ]
                     # 🟢 आपकी शर्त: ST/SC/OBC की Fees हमेशा बराबर होनी चाहिए — इसलिए हर ग्रुप में
                     # जो भी एक वैल्यू भरी मिलेगी, वही तीनों (ST/SC/OBC) में अपने-आप भर जाएगी।
+                    # 🟢 आपकी नई शर्त:
+                    # 1) Boys और Girls दोनों की Exam Fees हमेशा बराबर होती है
+                    # 2) Boys और Girls दोनों की Other Non-refundable Fees हमेशा बराबर होती है
+                    # 3) Girls की Tuition Fees हमेशा Boys की Tuition Fees से ₹200 कम होती है
+                    #    (इसलिए Tuition सिर्फ Boys की तीनों Category में सिंक होती है — Girls वाली
+                    #    अपने-आप नीचे दिए FEE_FORMAT_OFFSET_GROUPS से Boys - 200 के रूप में बनती है)
                     FEE_FORMAT_SYNC_GROUPS = [
                         ["Tution Fees for ST Boys*", "Tution Fees for SC Boys*", "Tution Fees for OBC Boys*"],
-                        ["Exam Fees for ST Boys*", "Exam Fees for SC Boys*", "Exam Fees for OBC Boys*"],
-                        ["Other Non-refundable Fees for ST Boys*", "Other Non-refundable Fees for SC Boys*", "Other Non-refundable Fees for OBC Boys*"],
-                        ["Tution Fees for ST Girls*", "Tution Fees for SC Girls*", "Tution Fees for OBC Girls*"],
-                        ["Exam Fees for ST Girls*", "Exam Fees for SC Girls*", "Exam Fees for OBC Girls*"],
-                        ["Other Non-refundable Fees for ST Girls*", "Other Non-refundable Fees for SC Girls*", "Other Non-refundable Fees for OBC Girls*"],
+                        [
+                            "Exam Fees for ST Boys*", "Exam Fees for SC Boys*", "Exam Fees for OBC Boys*",
+                            "Exam Fees for ST Girls*", "Exam Fees for SC Girls*", "Exam Fees for OBC Girls*",
+                        ],
+                        [
+                            "Other Non-refundable Fees for ST Boys*", "Other Non-refundable Fees for SC Boys*", "Other Non-refundable Fees for OBC Boys*",
+                            "Other Non-refundable Fees for ST Girls*", "Other Non-refundable Fees for SC Girls*", "Other Non-refundable Fees for OBC Girls*",
+                        ],
                     ]
+                    FEE_FORMAT_OFFSET_GROUPS = [
+                        ("Tution Fees for ST Boys*", "Tution Fees for ST Girls*", 200),
+                        ("Tution Fees for SC Boys*", "Tution Fees for SC Girls*", 200),
+                        ("Tution Fees for OBC Boys*", "Tution Fees for OBC Girls*", 200),
+                    ]
+                    st.caption(
+                        "💰 **ऑटो-रूल चालू है:** Exam Fees और Other Non-refundable Fees Boys व Girls दोनों में हमेशा "
+                        "बराबर रहेंगी। Girls की Tuition Fees हमेशा Boys की Tuition Fees से ₹200 कम अपने-आप बन जाएगी "
+                        "— बस Boys वाला कॉलम भरें।"
+                    )
                     st.caption(
                         "🔗 **ऑटो-सिंक चालू है:** हर ग्रुप (जैसे Tution Fees for ST/SC/OBC Boys) में से जिस भी एक कॉलम में "
                         "वैल्यू भरेंगे, वही वैल्यू बाकी दोनों कॉलम्स में भी अपने-आप कॉपी हो जाएगी — तीनों Category में एक जैसी Fees रहेंगी।"
@@ -2652,7 +2706,8 @@ else:
                         college_type=p4_fee2_college_type,
                         boys_columns=FEE_FORMAT_BOYS_COLUMNS,
                         girls_columns=FEE_FORMAT_GIRLS_COLUMNS,
-                        db_autofill_df=fee2_autofill_df
+                        db_autofill_df=fee2_autofill_df,
+                        offset_column_groups=FEE_FORMAT_OFFSET_GROUPS
                     )
 
                 elif file_format_type == "3. Fee Correction Format":
@@ -2714,6 +2769,89 @@ else:
                             f"Correct Other Non-refundable Fees ({cat} Girls)"
                         ]),
                     ]
+                    # 🟢 आपकी नई शर्त (Correct Fees पर लागू — Wrong Fees पर नहीं, क्योंकि वह
+                    # वही गलत वैल्यू है जो असल में चार्ज हुई थी):
+                    # 1) Correct Exam Fees Boys = Correct Exam Fees Girls
+                    # 2) Correct Other Non-refundable Fees Boys = Girls
+                    # 3) Correct Tuition Fees Girls = Correct Tuition Fees Boys - ₹200
+                    FEE3_SYNC_GROUPS = [
+                        [f"Correct Exam Fees ({cat} Boys)", f"Correct Exam Fees ({cat} Girls)"],
+                        [f"Correct Other Non-refundable Fees ({cat} Boys)", f"Correct Other Non-refundable Fees ({cat} Girls)"],
+                    ]
+                    FEE3_OFFSET_GROUPS = [
+                        (f"Correct Tution Fees ({cat} Boys)", f"Correct Tution Fees ({cat} Girls)", 200),
+                    ]
+                    st.caption(
+                        "💰 **ऑटो-रूल चालू है:** Correct Exam Fees और Correct Other Non-refundable Fees Boys व Girls "
+                        "में हमेशा बराबर रहेंगी। Correct Tuition Fees (Girls) हमेशा Correct Tuition Fees (Boys) से "
+                        "₹200 कम अपने-आप बन जाएगी। (Wrong Fees पर यह नियम लागू नहीं है — वह जो गलत चार्ज हुआ, वही रहेगा।)"
+                    )
+
+                    # 🟢 आपकी नई शर्त: SC Fee = ST Fee = OBC Fee — यानी जो भी Fee (Wrong/Correct,
+                    # Boys/Girls) आप एक Category (जैसे SC) में भरें, वही बाकी दोनों Category
+                    # (ST, OBC) की सेव फ़ाइल में भी अपने-आप कॉपी हो जाए। हर Category की अपनी अलग
+                    # फ़ाइल है, इसलिए मैच करने के लिए Course/Branch पहचानने वाले कॉलम्स
+                    # (Admission Year, Institute Code, MPTAASC Course Code, Branch Code आदि,
+                    # जिनमें Category का नाम नहीं आता) इस्तेमाल किए जाते हैं।
+                    FEE3_KEY_COLUMNS = [t for t in FEE_CORRECTION_FORMAT_COLUMNS_TEMPLATE if "{cat}" not in t]
+                    FEE3_FEE_COLUMNS_TEMPLATE = [t for t in FEE_CORRECTION_FORMAT_COLUMNS_TEMPLATE if "{cat}" in t]
+
+                    def fee3_propagate_to_other_categories(saved_full_df):
+                        other_cats = [c for c in ["SC", "ST", "OBC"] if c != p4_fee3_category]
+                        for other_cat in other_cats:
+                            other_store_file = FEE_CORRECTION_FORMAT_FILE_TEMPLATE.format(cat=other_cat.lower())
+                            other_cols = [t.format(cat=other_cat) for t in FEE_CORRECTION_FORMAT_COLUMNS_TEMPLATE]
+                            if os.path.exists(other_store_file) and os.path.getsize(other_store_file) > 0:
+                                other_df = pd.read_csv(other_store_file, dtype=str).fillna("")
+                                for oc in other_cols:
+                                    if oc not in other_df.columns:
+                                        other_df[oc] = ""
+                                other_df = other_df[other_cols].astype(str)
+                            else:
+                                other_df = pd.DataFrame(columns=other_cols)
+
+                            for _, row in saved_full_df.iterrows():
+                                key_vals = {kc: str(row.get(kc, "")).strip() for kc in FEE3_KEY_COLUMNS}
+                                if all(v == "" for v in key_vals.values()):
+                                    continue
+                                if not other_df.empty:
+                                    match_mask = pd.Series(True, index=other_df.index)
+                                    for kc in FEE3_KEY_COLUMNS:
+                                        match_mask &= (other_df[kc].astype(str).str.strip() == key_vals[kc])
+                                    match_idx = other_df.index[match_mask]
+                                else:
+                                    match_idx = pd.Index([])
+
+                                fee_updates = {}
+                                for t in FEE3_FEE_COLUMNS_TEMPLATE:
+                                    src_col = t.format(cat=p4_fee3_category)
+                                    tgt_col = t.format(cat=other_cat)
+                                    fee_updates[tgt_col] = str(row.get(src_col, ""))
+
+                                if len(match_idx) > 0:
+                                    for tgt_col, val in fee_updates.items():
+                                        other_df.loc[match_idx, tgt_col] = val
+                                else:
+                                    new_row = {kc: key_vals[kc] for kc in FEE3_KEY_COLUMNS}
+                                    new_row.update(fee_updates)
+                                    other_df = pd.concat([other_df, pd.DataFrame([new_row])], ignore_index=True)
+
+                            other_calc_groups = [
+                                (f"Total Fees ({other_cat} Boys)", [
+                                    f"Correct Tution Fees ({other_cat} Boys)",
+                                    f"Correct Exam Fees ({other_cat} Boys)",
+                                    f"Correct Other Non-refundable Fees ({other_cat} Boys)"
+                                ]),
+                                (f"Total Fees ({other_cat} Girls)", [
+                                    f"Correct Tution Fees ({other_cat} Girls)",
+                                    f"Correct Exam Fees ({other_cat} Girls)",
+                                    f"Correct Other Non-refundable Fees ({other_cat} Girls)"
+                                ]),
+                            ]
+                            other_df = calc_total_fee_columns(other_df, other_calc_groups)
+                            other_df.to_csv(other_store_file, index=False)
+                        st.info(f"🔁 यह Fee अब **{'/'.join(other_cats)}** Category की फ़ाइल में भी अपने-आप सिंक हो गई (SC = ST = OBC)। उन्हें देखने के लिए ऊपर से Category बदल लें।")
+
                     st.caption(
                         "🧮 **ऑटो-कैलकुलेशन चालू है:** Total Fees खुद टाइप करने की ज़रूरत नहीं — यह हमेशा "
                         "Correct Tution Fees + Correct Exam Fees + Correct Other Non-refundable Fees जोड़कर अपने-आप बन जाएगी।"
@@ -2781,7 +2919,10 @@ else:
                         girls_columns=FEE3_GIRLS_COLUMNS,
                         red_columns=FEE3_RED_COLUMNS,
                         green_columns=FEE3_GREEN_COLUMNS,
-                        db_autofill_df=fee3_autofill_df
+                        db_autofill_df=fee3_autofill_df,
+                        sync_column_groups=FEE3_SYNC_GROUPS,
+                        offset_column_groups=FEE3_OFFSET_GROUPS,
+                        post_save_hook=fee3_propagate_to_other_categories
                     )
 
                 st.markdown('</div>', unsafe_allow_html=True)
