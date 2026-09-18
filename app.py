@@ -582,6 +582,23 @@ def render_p4_upload_master_format(fmt_key, fmt_title, fmt_columns, store_file, 
         if not saved_fmt_df.equals(before_sync_df):
             saved_fmt_df.to_csv(store_file, index=False)
 
+    # 🟢 फिक्स: पहले College Type सिर्फ नई अपलोड होने वाली फ़ाइल पर लगता था, इसलिए
+    # पहले से सेव डेटा में रेडियो बटन बदलने पर कुछ नहीं बदलता था (लगता था काम ही नहीं कर रहा)।
+    # अब यह नीचे दिखने वाली टेबल, CSV/XLSX डाउनलोड और प्रिंट — सब पर तुरंत लागू होता है।
+    # ⚠️ ज़रूरी: स्टोर फ़ाइल में असली वैल्यू सुरक्षित रहती है (0 नहीं होती), इसलिए
+    # "Both (Co-Ed)" पर वापस आते ही पुरानी वैल्यू फिर से दिख जाएँगी — डेटा कभी नहीं मिटता।
+    if college_type and not college_type.strip().lower().startswith("both"):
+        before_ct_df = saved_fmt_df.copy()
+        saved_fmt_df = apply_college_type_zero(saved_fmt_df, college_type, boys_columns, girls_columns)
+        saved_fmt_df = calc_total_fee_columns(saved_fmt_df, calc_column_groups)
+        if not saved_fmt_df.equals(before_ct_df):
+            _zeroed_side = "Girls" if college_type.strip().lower().startswith("boys") else "Boys"
+            st.info(
+                f"🏫 College Type = **{college_type}** चुना गया है, इसलिए नीचे की टेबल, डाउनलोड और प्रिंट में "
+                f"सभी **{_zeroed_side}** वाली Fees **0** दिखाई जा रही हैं। (सेव फ़ाइल में असली वैल्यू सुरक्षित है — "
+                "'Both (Co-Ed)' चुनते ही वापस दिखने लगेगी।)"
+            )
+
     if "Sr. No." in fmt_columns:
         saved_fmt_df["Sr. No."] = range(1, len(saved_fmt_df) + 1)
 
@@ -2411,9 +2428,9 @@ else:
                         horizontal=True
                     )
                     if p4_fee2_college_type == "Boys College":
-                        st.caption("ℹ️ आपने 'Boys College' चुना है — अपलोड होने वाले डेटा में सभी Girls वाली Fees अपने-आप **0** हो जाएँगी।")
+                        st.caption("ℹ️ आपने 'Boys College' चुना है — अपलोड होने वाले डेटा के साथ-साथ नीचे दिख रही सेव टेबल, डाउनलोड और प्रिंट में भी सभी Girls वाली Fees **0** हो जाएँगी।")
                     elif p4_fee2_college_type == "Girls College":
-                        st.caption("ℹ️ आपने 'Girls College' चुना है — अपलोड होने वाले डेटा में सभी Boys वाली Fees अपने-आप **0** हो जाएँगी।")
+                        st.caption("ℹ️ आपने 'Girls College' चुना है — अपलोड होने वाले डेटा के साथ-साथ नीचे दिख रही सेव टेबल, डाउनलोड और प्रिंट में भी सभी Boys वाली Fees **0** हो जाएँगी।")
 
                     FEE_FORMAT_BOYS_COLUMNS = [
                         "Tution Fees for ST Boys*", "Exam Fees for ST Boys*", "Other Non-refundable Fees for ST Boys*",
@@ -2512,9 +2529,9 @@ else:
                         horizontal=True
                     )
                     if p4_fee3_college_type == "Boys College":
-                        st.caption("ℹ️ आपने 'Boys College' चुना है — अपलोड होने वाले डेटा में सभी Girls वाली Fees (Wrong/Correct/Total) अपने-आप **0** हो जाएँगी।")
+                        st.caption("ℹ️ आपने 'Boys College' चुना है — अपलोड होने वाले डेटा के साथ-साथ नीचे दिख रही सेव टेबल, डाउनलोड और प्रिंट में भी सभी Girls वाली Fees (Wrong/Correct/Total) **0** हो जाएँगी।")
                     elif p4_fee3_college_type == "Girls College":
-                        st.caption("ℹ️ आपने 'Girls College' चुना है — अपलोड होने वाले डेटा में सभी Boys वाली Fees (Wrong/Correct/Total) अपने-आप **0** हो जाएँगी।")
+                        st.caption("ℹ️ आपने 'Girls College' चुना है — अपलोड होने वाले डेटा के साथ-साथ नीचे दिख रही सेव टेबल, डाउनलोड और प्रिंट में भी सभी Boys वाली Fees (Wrong/Correct/Total) **0** हो जाएँगी।")
 
                     FEE3_BOYS_COLUMNS = [
                         f"Wrong Tution Fees ({cat} Boys)", f"Correct Tution Fees ({cat} Boys)",
