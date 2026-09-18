@@ -393,7 +393,35 @@ def save_stage_data(df_to_save):
 # डाउनलोड/प्रिंट करो" वाले फॉर्मेट के लिए दोबारा इस्तेमाल होता है, ताकि हर
 # नए फॉर्मेट के लिए अलग से सैकड़ों लाइन कोड न लिखनी पड़े।
 # ==========================================================
-def render_p4_upload_master_format(fmt_key, fmt_title, fmt_columns, store_file, header_line_1, header_line_2):
+def sync_equal_fee_columns(df, sync_groups):
+    """
+    🟢 कुछ फॉर्मेट्स में एक ही तरह की Fee अलग-अलग Category (ST/SC/OBC) के लिए बार-बार
+    दोहरानी पड़ती है, जबकि असल में वो हमेशा बराबर होती है। यह फ़ंक्शन हर row में दिए गए
+    ग्रुप के कॉलम्स में से जो भी वैल्यू भरी मिले (जो भी पहले खाली-नहीं मिले), वही वैल्यू
+    ग्रुप के बाकी सभी कॉलम्स में भी अपने-आप भर देता है — ताकि Data Entry करने वाले को
+    सिर्फ एक बार वैल्यू भरनी पड़े और बाकी अपने-आप Same हो जाएँ।
+    """
+    if not sync_groups:
+        return df
+    df = df.copy()
+    for group in sync_groups:
+        existing_group = [c for c in group if c in df.columns]
+        if len(existing_group) < 2:
+            continue
+
+        def _pick_val(row, cols=existing_group):
+            for c in cols:
+                v = str(row[c]).strip()
+                if v and v.lower() != "nan":
+                    return v
+            return ""
+
+        unified_series = df.apply(_pick_val, axis=1)
+        for c in existing_group:
+            df[c] = unified_series
+    return df
+
+def render_p4_upload_master_format(fmt_key, fmt_title, fmt_columns, store_file, header_line_1, header_line_2, sync_column_groups=None):
     st.info(
         f"📌 यह '{fmt_title}' एक अलग मास्टर टेबल है (स्टूडेंट डेटाबेस से सीधे जुड़ी नहीं है)। "
         "पहले नीचे से खाली टेम्पलेट डाउनलोड करें, उसे Excel/CSV में भरें, फिर उसी फ़ाइल को यहाँ "
@@ -435,6 +463,7 @@ def render_p4_upload_master_format(fmt_key, fmt_title, fmt_columns, store_file, 
             extra_in_upload = [c for c in incoming_df.columns if c not in fmt_columns]
 
             incoming_df = incoming_df[fmt_columns].astype(str)
+            incoming_df = sync_equal_fee_columns(incoming_df, sync_column_groups)
 
             if missing_in_upload:
                 st.warning(f"⚠️ इन कॉलम्स की वैल्यू अपलोड की गई फ़ाइल में नहीं मिलीं, इसलिए खाली रखी गई हैं: {', '.join(missing_in_upload)}")
@@ -492,6 +521,14 @@ def render_p4_upload_master_format(fmt_key, fmt_title, fmt_columns, store_file, 
         if mcol not in saved_fmt_df.columns:
             saved_fmt_df[mcol] = ""
     saved_fmt_df = saved_fmt_df[fmt_columns].astype(str)
+
+    # 🟢 अगर पुराना सेव किया हुआ डेटा किसी वजह से Sync-ग्रुप में मेल नहीं खाता,
+    # तो यहाँ भी उसे ठीक करके, ज़रूरत पड़ने पर स्टोर फ़ाइल में वापस अपडेट कर दें
+    if sync_column_groups:
+        before_sync_df = saved_fmt_df.copy()
+        saved_fmt_df = sync_equal_fee_columns(saved_fmt_df, sync_column_groups)
+        if not saved_fmt_df.equals(before_sync_df):
+            saved_fmt_df.to_csv(store_file, index=False)
 
     if "Sr. No." in fmt_columns:
         saved_fmt_df["Sr. No."] = range(1, len(saved_fmt_df) + 1)
@@ -2250,13 +2287,28 @@ else:
                         "Tution Fees for OBC Boys*", "Exam Fees for OBC Boys*", "Other Non-refundable Fees for OBC Boys*",
                         "Tution Fees for OBC Girls*", "Exam Fees for OBC Girls*", "Other Non-refundable Fees for OBC Girls*"
                     ]
+                    # 🟢 आपकी शर्त: ST/SC/OBC की Fees हमेशा बराबर होनी चाहिए — इसलिए हर ग्रुप में
+                    # जो भी एक वैल्यू भरी मिलेगी, वही तीनों (ST/SC/OBC) में अपने-आप भर जाएगी।
+                    FEE_FORMAT_SYNC_GROUPS = [
+                        ["Tution Fees for ST Boys*", "Tution Fees for SC Boys*", "Tution Fees for OBC Boys*"],
+                        ["Exam Fees for ST Boys*", "Exam Fees for SC Boys*", "Exam Fees for OBC Boys*"],
+                        ["Other Non-refundable Fees for ST Boys*", "Other Non-refundable Fees for SC Boys*", "Other Non-refundable Fees for OBC Boys*"],
+                        ["Tution Fees for ST Girls*", "Tution Fees for SC Girls*", "Tution Fees for OBC Girls*"],
+                        ["Exam Fees for ST Girls*", "Exam Fees for SC Girls*", "Exam Fees for OBC Girls*"],
+                        ["Other Non-refundable Fees for ST Girls*", "Other Non-refundable Fees for SC Girls*", "Other Non-refundable Fees for OBC Girls*"],
+                    ]
+                    st.caption(
+                        "🔗 **ऑटो-सिंक चालू है:** हर ग्रुप (जैसे Tution Fees for ST/SC/OBC Boys) में से जिस भी एक कॉलम में "
+                        "वैल्यू भरेंगे, वही वैल्यू बाकी दोनों कॉलम्स में भी अपने-आप कॉपी हो जाएगी — तीनों Category में एक जैसी Fees रहेंगी।"
+                    )
                     render_p4_upload_master_format(
                         fmt_key="p4fee2",
                         fmt_title="Fee Format",
                         fmt_columns=FEE_FORMAT_COLUMNS,
                         store_file=FEE_FORMAT_FILE,
                         header_line_1=custom_header_1,
-                        header_line_2=custom_header_2
+                        header_line_2=custom_header_2,
+                        sync_column_groups=FEE_FORMAT_SYNC_GROUPS
                     )
 
                 elif file_format_type == "3. Fee Correction Format (SC)":
