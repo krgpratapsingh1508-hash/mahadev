@@ -39,7 +39,8 @@ NOTICE_FILE = "notice_board_schema.json"
 # 🟢 P4 FEE FORMAT (Format 2) और FEE CORRECTION FORMAT (Format 3 - SC) की मास्टर डेटा फ़ाइलें
 # (यह स्टूडेंट डेटाबेस से अलग हैं — Institute/Course/Branch स्तर की Fee जानकारी यहाँ सेव होती है)
 FEE_FORMAT_FILE = "p4_fee_format_master.csv"
-FEE_CORRECTION_SC_FORMAT_FILE = "p4_fee_correction_sc_format.csv"
+FEE_CORRECTION_SC_FORMAT_FILE = "p4_fee_correction_sc_format.csv"  # पुराना (SC) डेटा — पीछे compatibility के लिए
+FEE_CORRECTION_FORMAT_FILE_TEMPLATE = "p4_fee_correction_{cat}_format.csv"  # 🟢 Format 3: Category (SC/ST/OBC) के हिसाब से अलग-अलग फ़ाइल
 
 # 🟢 P12 SYLLABUS MANAGER: subject-wise syllabus (file ya link) yahin store hoga
 SYLLABUS_FILE = "subject_syllabus_schema.json"
@@ -1966,7 +1967,7 @@ else:
                     options=[
                         "1. Upload Admission Format",
                         "2. Upload Fee Format",
-                        "3. Fee Correction Format (SC)"
+                        "3. Fee Correction Format"
                     ],
                     key="p4_file_format_type_selector"
                 )
@@ -1993,7 +1994,7 @@ else:
                 elif file_format_type.startswith("2."):
                     default_header_2 = "FEE FORMAT REPORT SHEET"
                 else:
-                    default_header_2 = "FEE CORRECTION FORMAT REPORT SHEET (SC)"
+                    default_header_2 = "FEE CORRECTION FORMAT REPORT SHEET"
 
                 _p4h2_track_key = "_p4_h2_last_format"
                 if st.session_state.get(_p4h2_track_key) != file_format_type:
@@ -2310,37 +2311,57 @@ else:
                         sync_column_groups=FEE_FORMAT_SYNC_GROUPS
                     )
 
-                elif file_format_type == "3. Fee Correction Format (SC)":
+                elif file_format_type == "3. Fee Correction Format":
                     # 🟢 नोट: आपके दिए गए कॉलम में कुछ नाम दोहरे थे (जैसे "MPTAASC Course code" दो बार,
                     # "Wrong Exam Fees" और "Wrong Other non refundable Fees" बिना Boys/Girls सफिक्स के दो-दो बार)।
                     # चूँकि एक टेबल में दो कॉलम का नाम बिल्कुल एक जैसा नहीं हो सकता, इसलिए इन्हें बाकी
-                    # कॉलम्स जैसे ही साफ़ तरीके से यूनीक बना दिया गया है (नीचे कमेंट में देखें)। अगर आप कोई
-                    # अलग नाम चाहते हैं तो बता दीजिए, बदल देंगे।
-                    FEE_CORRECTION_SC_FORMAT_COLUMNS = [
+                    # कॉलम्स जैसे ही साफ़ तरीके से यूनीक बना दिया गया है। अगर आप कोई अलग नाम चाहते हैं तो
+                    # बता दीजिए, बदल देंगे।
+                    FEE_CORRECTION_FORMAT_COLUMNS_TEMPLATE = [
                         "Admission Year", "Course Year", "Institute Code",  # 🔧 "InSCiute code" → "Institute Code" (टाइपो ठीक किया)
                         "College Name", "MPTAASC Course Code", "MPTAASC Course Name",
                         "MPTAASC Branch Code",  # 🔧 दोहराए गए "MPTAASC Course code" को यूनीक बनाया
                         "Branch Code",
-                        "Wrong Tution Fees (SC Boys)", "Correct Tution Fees (SC Boys)",
-                        "Wrong Exam Fees (SC Boys)",  # 🔧 सफिक्स जोड़ा (पहले सिर्फ "Wrong Exam Fees")
-                        "Correct Exam Fees (SC Boys)",
-                        "Wrong Other Non-refundable Fees (SC Boys)",  # 🔧 सफिक्स जोड़ा
-                        "Correct Other Non-refundable Fees (SC Boys)",
-                        "Total Fees (SC Boys)",
-                        "Wrong Tution Fees (SC Girls)", "Correct Tution Fees (SC Girls)",
-                        "Wrong Exam Fees (SC Girls)",  # 🔧 सफिक्स जोड़ा
-                        "Correct Exam Fees (SC Girls)",
-                        "Wrong Other Non-refundable Fees (SC Girls)",  # 🔧 सफिक्स जोड़ा
-                        "Correct Other Non-refundable Fees (SC Girls)",
-                        "Total Fees (SC Girls)"
+                        "Wrong Tution Fees ({cat} Boys)", "Correct Tution Fees ({cat} Boys)",
+                        "Wrong Exam Fees ({cat} Boys)",  # 🔧 सफिक्स जोड़ा (पहले सिर्फ "Wrong Exam Fees")
+                        "Correct Exam Fees ({cat} Boys)",
+                        "Wrong Other Non-refundable Fees ({cat} Boys)",  # 🔧 सफिक्स जोड़ा
+                        "Correct Other Non-refundable Fees ({cat} Boys)",
+                        "Total Fees ({cat} Boys)",
+                        "Wrong Tution Fees ({cat} Girls)", "Correct Tution Fees ({cat} Girls)",
+                        "Wrong Exam Fees ({cat} Girls)",  # 🔧 सफिक्स जोड़ा
+                        "Correct Exam Fees ({cat} Girls)",
+                        "Wrong Other Non-refundable Fees ({cat} Girls)",  # 🔧 सफिक्स जोड़ा
+                        "Correct Other Non-refundable Fees ({cat} Girls)",
+                        "Total Fees ({cat} Girls)"
                     ]
+
+                    # ==================================================================
+                    # 🟢 आपकी नई माँग: यही Format 3 अब SC के अलावा ST या OBC के लिए भी
+                    # इस्तेमाल हो सके — नीचे से Category चुनें, पूरा फॉर्मेट (कॉलम नाम,
+                    # हेडर, सेव फ़ाइल) उसी Category के हिसाब से अपने-आप बदल जाएगा।
+                    # हर Category का डेटा अलग-अलग सुरक्षित रहता है (एक-दूसरे को ओवरराइट नहीं करता)।
+                    # ==================================================================
+                    p4_fee3_category = st.selectbox(
+                        "🔁 Category चुनें (SC / ST / OBC) — यही Format 3 उसी Category के लिए बन जाएगा:",
+                        options=["SC", "ST", "OBC"],
+                        key="p4_fee3_category_select"
+                    )
+
+                    FEE_CORRECTION_FORMAT_COLUMNS = [
+                        c.format(cat=p4_fee3_category) for c in FEE_CORRECTION_FORMAT_COLUMNS_TEMPLATE
+                    ]
+                    fee3_store_file = FEE_CORRECTION_FORMAT_FILE_TEMPLATE.format(cat=p4_fee3_category.lower())
+                    fee3_title = f"Fee Correction Format ({p4_fee3_category})"
+                    fee3_header_2 = f"{custom_header_2} - {p4_fee3_category}" if custom_header_2 else f"FEE CORRECTION FORMAT REPORT SHEET ({p4_fee3_category})"
+
                     render_p4_upload_master_format(
-                        fmt_key="p4fee3sc",
-                        fmt_title="Fee Correction Format (SC)",
-                        fmt_columns=FEE_CORRECTION_SC_FORMAT_COLUMNS,
-                        store_file=FEE_CORRECTION_SC_FORMAT_FILE,
+                        fmt_key=f"p4fee3{p4_fee3_category.lower()}",
+                        fmt_title=fee3_title,
+                        fmt_columns=FEE_CORRECTION_FORMAT_COLUMNS,
+                        store_file=fee3_store_file,
                         header_line_1=custom_header_1,
-                        header_line_2=custom_header_2
+                        header_line_2=fee3_header_2
                     )
 
                 st.markdown('</div>', unsafe_allow_html=True)
