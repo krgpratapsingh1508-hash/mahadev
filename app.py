@@ -40,6 +40,7 @@ NOTICE_FILE = "notice_board_schema.json"
 # (यह स्टूडेंट डेटाबेस से अलग हैं — Institute/Course/Branch स्तर की Fee जानकारी यहाँ सेव होती है)
 FEE_FORMAT_FILE = "p4_fee_format_master.csv"
 FEE_CORRECTION_SC_FORMAT_FILE = "p4_fee_correction_sc_format.csv"  # पुराना (SC) डेटा — पीछे compatibility के लिए
+ADMISSION_FORMAT_MANUAL_FILE = "p4_admission_format_manual_edited.csv"  # 🟢 Format 1 की हाथ से एडिट की हुई कॉपी
 FEE_CORRECTION_FORMAT_FILE_TEMPLATE = "p4_fee_correction_{cat}_format.csv"  # 🟢 Format 3: Category (SC/ST/OBC) के हिसाब से अलग-अलग फ़ाइल
 
 # 🟢 P12 SYLLABUS MANAGER: subject-wise syllabus (file ya link) yahin store hoga
@@ -470,7 +471,43 @@ def apply_college_type_zero(df, college_type, boys_columns, girls_columns):
         df[c] = "0"
     return df
 
-def render_p4_upload_master_format(fmt_key, fmt_title, fmt_columns, store_file, header_line_1, header_line_2, sync_column_groups=None, calc_column_groups=None, college_type=None, boys_columns=None, girls_columns=None, red_columns=None, green_columns=None):
+def build_format_rows_from_admission_db(db_df, out_columns, source_map, default_values=None, dedupe=True):
+    """
+    🟢 बिना कोई फ़ाइल अपलोड किए, सीधे Admission Panel (P2) के मौजूदा डेटा से किसी भी
+    फॉर्मेट (Format 2 / Format 3) की खाली-भरी टेबल बना देता है।
+    source_map: {"आउटपुट कॉलम": "डेटाबेस कॉलम"} — जिस आउटपुट कॉलम का DB में कोई सीधा
+    फ़ील्ड नहीं है, उसे default_values से भर दिया जाता है (वरना खाली रहेगा — बाद में
+    नीचे दिए गए Edit Mode से हाथ से भरा जा सकता है)।
+    dedupe=True होने पर एक जैसी (Course/Branch/Year वाली) डुप्लिकेट लाइनें हटा दी जाती हैं,
+    क्योंकि Fee फॉर्मेट में हर स्टूडेंट की नहीं, हर Course/Branch की एक ही लाइन चाहिए।
+    """
+    default_values = default_values or {}
+    out_df = pd.DataFrame()
+    for out_col in out_columns:
+        if out_col == "Sr. No.":
+            continue
+        src_col = source_map.get(out_col, "")
+        if src_col and src_col in db_df.columns:
+            out_df[out_col] = db_df[src_col].astype(str).str.strip()
+        else:
+            out_df[out_col] = str(default_values.get(out_col, ""))
+    if out_df.empty:
+        return pd.DataFrame(columns=out_columns)
+    if dedupe:
+        key_cols = [c for c in out_df.columns if source_map.get(c, "") in db_df.columns and source_map.get(c, "")]
+        if key_cols:
+            out_df = out_df.drop_duplicates(subset=key_cols).reset_index(drop=True)
+        else:
+            out_df = out_df.drop_duplicates().reset_index(drop=True)
+    out_df = out_df.reset_index(drop=True)
+    if "Sr. No." in out_columns:
+        out_df.insert(0, "Sr. No.", range(1, len(out_df) + 1))
+    for c in out_columns:
+        if c not in out_df.columns:
+            out_df[c] = ""
+    return out_df[out_columns].astype(str)
+
+def render_p4_upload_master_format(fmt_key, fmt_title, fmt_columns, store_file, header_line_1, header_line_2, sync_column_groups=None, calc_column_groups=None, college_type=None, boys_columns=None, girls_columns=None, red_columns=None, green_columns=None, db_autofill_df=None, allow_edit=True):
     st.info(
         f"📌 यह '{fmt_title}' एक अलग मास्टर टेबल है (स्टूडेंट डेटाबेस से सीधे जुड़ी नहीं है)। "
         "पहले नीचे से खाली टेम्पलेट डाउनलोड करें, उसे Excel/CSV में भरें, फिर उसी फ़ाइल को यहाँ "
@@ -557,6 +594,48 @@ def render_p4_upload_master_format(fmt_key, fmt_title, fmt_columns, store_file, 
         except Exception as fmt_upload_err:
             st.error(f"❌ फ़ाइल पढ़ने/सेव करने में तकनीकी समस्या आई: {fmt_upload_err}")
 
+    # 2️⃣.5 🗄️ बिना फ़ाइल अपलोड किए — सीधे Admission Panel (P2) से डेटा लाएँ
+    if db_autofill_df is not None:
+        st.markdown("---")
+        st.subheader("🗄️ फ़ाइल नहीं देनी? सीधे Admission Panel से डेटा लाएँ")
+        if db_autofill_df.empty:
+            st.warning("⚠️ Admission Panel (P2) में अभी कोई डेटा नहीं है, इसलिए ऑटो-फ़िल के लिए कुछ नहीं मिला।")
+        else:
+            st.info(
+                f"📌 Admission Panel के डेटा से इस फॉर्मेट की **{len(db_autofill_df)}** लाइनें अपने-आप बन सकती हैं "
+                "(Course / Branch / Year की जानकारी DB से आ जाएगी)। Fees जैसे जो कॉलम डेटाबेस में नहीं हैं, "
+                "वे खाली आएँगे — उन्हें नीचे '✏️ Edit Mode' में सीधे यहीं भर सकते हैं। किसी फ़ाइल की ज़रूरत नहीं।"
+            )
+            st.dataframe(
+                db_autofill_df, use_container_width=True, hide_index=True,
+                height=min((len(db_autofill_df) + 1) * 35 + 3, 500)
+            )
+            auto_mode = st.radio(
+                "💾 Admission Panel का यह डेटा कैसे सेव करें?",
+                options=["मौजूदा डेटा में जोड़ें (Append)", "मौजूदा डेटा को पूरी तरह बदल दें (Replace All)"],
+                key=f"{fmt_key}_autofill_mode_radio",
+                horizontal=True
+            )
+            if st.button("🗄️ Admission Panel से डेटा भरकर सेव करें", use_container_width=True, key=f"{fmt_key}_autofill_btn"):
+                auto_df = db_autofill_df.copy()
+                auto_df = sync_equal_fee_columns(auto_df, sync_column_groups)
+                auto_df = apply_college_type_zero(auto_df, college_type, boys_columns, girls_columns)
+                auto_df = calc_total_fee_columns(auto_df, calc_column_groups)
+                if os.path.exists(store_file) and os.path.getsize(store_file) > 0 and not auto_mode.startswith("मौजूदा डेटा को"):
+                    old_auto_df = pd.read_csv(store_file, dtype=str).fillna("")
+                    for mcol in fmt_columns:
+                        if mcol not in old_auto_df.columns:
+                            old_auto_df[mcol] = ""
+                    old_auto_df = old_auto_df[fmt_columns].astype(str)
+                    final_auto_df = pd.concat([old_auto_df, auto_df], ignore_index=True).drop_duplicates(keep="last").reset_index(drop=True)
+                else:
+                    final_auto_df = auto_df
+                if "Sr. No." in fmt_columns:
+                    final_auto_df["Sr. No."] = range(1, len(final_auto_df) + 1)
+                final_auto_df.to_csv(store_file, index=False)
+                st.success(f"🎉 Admission Panel से कुल {len(final_auto_df)} रिकॉर्ड्स '{fmt_title}' में सेव हो गए।")
+                st.rerun()
+
     st.markdown("---")
 
     # 3️⃣ पहले से सेव किया हुआ डेटा दिखाएँ (View + Filter + Download + Print)
@@ -581,6 +660,9 @@ def render_p4_upload_master_format(fmt_key, fmt_title, fmt_columns, store_file, 
         saved_fmt_df = calc_total_fee_columns(saved_fmt_df, calc_column_groups)
         if not saved_fmt_df.equals(before_sync_df):
             saved_fmt_df.to_csv(store_file, index=False)
+
+    # ✏️ Edit Mode के लिए असली (बिना 0 किए हुए) डेटा की कॉपी अलग रख लेते हैं
+    editable_fmt_df = saved_fmt_df.copy()
 
     # 🟢 फिक्स: पहले College Type सिर्फ नई अपलोड होने वाली फ़ाइल पर लगता था, इसलिए
     # पहले से सेव डेटा में रेडियो बटन बदलने पर कुछ नहीं बदलता था (लगता था काम ही नहीं कर रहा)।
@@ -651,6 +733,46 @@ def render_p4_upload_master_format(fmt_key, fmt_title, fmt_columns, store_file, 
             st.dataframe(view_fmt_df, use_container_width=True, hide_index=True, height=fmt_table_height)
     else:
         st.dataframe(view_fmt_df, use_container_width=True, hide_index=True, height=fmt_table_height)
+
+    # ==================================================================
+    # ✏️ EDIT MODE — फॉर्मेट का सेव किया हुआ डेटा सीधे यहीं P4 में बदलें
+    # (नई लाइन जोड़ें, पुरानी लाइन हटाएँ, किसी भी सेल की वैल्यू सुधारें)
+    # ==================================================================
+    if allow_edit:
+        with st.expander(f"✏️ Edit Mode — '{fmt_title}' का डेटा यहीं बदलें (कोई फ़ाइल अपलोड किए बिना)", expanded=False):
+            st.caption(
+                "🖊️ नीचे की टेबल में सीधे टाइप करके कोई भी वैल्यू बदली जा सकती है। सबसे नीचे खाली लाइन में "
+                "लिखने पर नई लाइन जुड़ जाएगी, और किसी लाइन को चुनकर Delete दबाने पर वह हट जाएगी। "
+                "बदलाव तभी पक्के होंगे जब आप नीचे '💾 बदलाव सेव करें' दबाएँगे। "
+                "(Total Fees और Auto-Sync वाले कॉलम सेव करते ही अपने-आप दोबारा सही कर दिए जाते हैं।)"
+            )
+            edited_fmt_df = st.data_editor(
+                editable_fmt_df,
+                use_container_width=True,
+                hide_index=True,
+                num_rows="dynamic",
+                key=f"{fmt_key}_data_editor"
+            )
+            ecol1, ecol2 = st.columns(2)
+            with ecol1:
+                if st.button("💾 बदलाव सेव करें", type="primary", use_container_width=True, key=f"{fmt_key}_editor_save_btn"):
+                    try:
+                        save_edit_df = pd.DataFrame(edited_fmt_df).fillna("").astype(str)
+                        for mcol in fmt_columns:
+                            if mcol not in save_edit_df.columns:
+                                save_edit_df[mcol] = ""
+                        save_edit_df = save_edit_df[fmt_columns].astype(str)
+                        save_edit_df = sync_equal_fee_columns(save_edit_df, sync_column_groups)
+                        save_edit_df = calc_total_fee_columns(save_edit_df, calc_column_groups)
+                        if "Sr. No." in fmt_columns:
+                            save_edit_df["Sr. No."] = range(1, len(save_edit_df) + 1)
+                        save_edit_df.to_csv(store_file, index=False)
+                        st.success(f"✅ बदलाव सेव हो गए — अब '{fmt_title}' में कुल {len(save_edit_df)} रिकॉर्ड्स हैं।")
+                        st.rerun()
+                    except Exception as edit_err:
+                        st.error(f"❌ बदलाव सेव करने में समस्या आई: {edit_err}")
+            with ecol2:
+                st.caption("⚠️ यहाँ किया गया बदलाव सीधे सेव फ़ाइल में जाता है — इसलिए सेव दबाने से पहले एक बार ऊपर की टेबल ज़रूर देख लें।")
 
     header_lines = [h for h in [header_line_1, header_line_2, header_3, header_4] if h and h.strip()]
 
@@ -2222,7 +2344,68 @@ else:
 
                         adm_fmt_df.insert(0, "Sr. No.", range(1, len(adm_fmt_df) + 1))
 
-                        st.success(f"✅ Admission Panel से कुल {len(adm_fmt_df)} रिकॉर्ड्स इस फॉर्मेट में मिले।")
+                        # ==================================================================
+                        # ✏️ Format 1 में भी एडिट की पावर — DB से बना यह फॉर्मेट अब यहीं
+                        # बदला जा सकता है। बदली हुई कॉपी अलग फ़ाइल में सेव होती है, इसलिए
+                        # आपका असली Admission Panel डेटा कभी खराब नहीं होता।
+                        # ==================================================================
+                        adm_manual_in_use = False
+                        if os.path.exists(ADMISSION_FORMAT_MANUAL_FILE) and os.path.getsize(ADMISSION_FORMAT_MANUAL_FILE) > 0:
+                            try:
+                                adm_manual_df = pd.read_csv(ADMISSION_FORMAT_MANUAL_FILE, dtype=str).fillna("")
+                                for _mc in ADMISSION_FORMAT_COLUMNS:
+                                    if _mc not in adm_manual_df.columns:
+                                        adm_manual_df[_mc] = ""
+                                adm_manual_df = adm_manual_df[ADMISSION_FORMAT_COLUMNS].astype(str)
+                                adm_manual_df["Sr. No."] = range(1, len(adm_manual_df) + 1)
+                                adm_fmt_df = adm_manual_df
+                                adm_manual_in_use = True
+                            except Exception:
+                                adm_manual_in_use = False
+
+                        if adm_manual_in_use:
+                            st.success(f"✏️ आपकी एडिट की हुई कॉपी इस्तेमाल हो रही है — कुल {len(adm_fmt_df)} रिकॉर्ड्स। "
+                                       "(नीचे 'DB से दोबारा बनाएँ' दबाकर कभी भी Admission Panel वाला असली डेटा वापस लाया जा सकता है।)")
+                        else:
+                            st.success(f"✅ Admission Panel से कुल {len(adm_fmt_df)} रिकॉर्ड्स इस फॉर्मेट में मिले।")
+
+                        with st.expander("✏️ Edit Mode — Admission Format का डेटा यहीं बदलें", expanded=False):
+                            st.caption(
+                                "🖊️ नीचे सीधे टाइप करके कोई भी वैल्यू बदलें, सबसे नीचे नई लाइन जोड़ें या किसी लाइन को हटाएँ। "
+                                "'💾 बदलाव सेव करें' दबाने पर यह एडिट की हुई कॉपी अलग फ़ाइल में सुरक्षित हो जाती है और "
+                                "नीचे की टेबल, डाउनलोड व प्रिंट सब उसी से बनते हैं। असली Admission Panel डेटा जस का तस रहता है।"
+                            )
+                            adm_edited_df = st.data_editor(
+                                adm_fmt_df[ADMISSION_FORMAT_COLUMNS],
+                                use_container_width=True,
+                                hide_index=True,
+                                num_rows="dynamic",
+                                key="p4_admission_format_data_editor"
+                            )
+                            adm_ed_c1, adm_ed_c2 = st.columns(2)
+                            with adm_ed_c1:
+                                if st.button("💾 बदलाव सेव करें", type="primary", use_container_width=True, key="p4_admfmt_editor_save_btn"):
+                                    try:
+                                        adm_save_df = pd.DataFrame(adm_edited_df).fillna("").astype(str)
+                                        for _mc in ADMISSION_FORMAT_COLUMNS:
+                                            if _mc not in adm_save_df.columns:
+                                                adm_save_df[_mc] = ""
+                                        adm_save_df = adm_save_df[ADMISSION_FORMAT_COLUMNS].astype(str)
+                                        adm_save_df["Sr. No."] = range(1, len(adm_save_df) + 1)
+                                        adm_save_df.to_csv(ADMISSION_FORMAT_MANUAL_FILE, index=False)
+                                        st.success(f"✅ बदलाव सेव हो गए — कुल {len(adm_save_df)} रिकॉर्ड्स।")
+                                        st.rerun()
+                                    except Exception as adm_edit_err:
+                                        st.error(f"❌ बदलाव सेव करने में समस्या आई: {adm_edit_err}")
+                            with adm_ed_c2:
+                                if st.button("🔄 DB से दोबारा बनाएँ (एडिट हटाएँ)", use_container_width=True, key="p4_admfmt_editor_reset_btn"):
+                                    try:
+                                        if os.path.exists(ADMISSION_FORMAT_MANUAL_FILE):
+                                            os.remove(ADMISSION_FORMAT_MANUAL_FILE)
+                                        st.success("🔄 एडिट हटा दी गई — अब यह फॉर्मेट सीधे Admission Panel के डेटा से बनेगा।")
+                                        st.rerun()
+                                    except Exception as adm_reset_err:
+                                        st.error(f"❌ रीसेट करने में समस्या आई: {adm_reset_err}")
 
                         # ==================================================================
                         # 🎛️ Column Filter Target + Filter Value (जो कॉलम चुनें, सिर्फ उसी
@@ -2443,6 +2626,21 @@ else:
                         "Tution Fees for OBC Girls*", "Exam Fees for OBC Girls*", "Other Non-refundable Fees for OBC Girls*"
                     ]
 
+                    # 🗄️ बिना फ़ाइल दिए — Admission Panel (P2) के डेटा से यह फॉर्मेट अपने-आप बन जाए
+                    fee2_db_source = live_db[live_db["Target Panel Visibility"] == "P2"].copy()
+                    FEE2_DB_SOURCE_MAP = {
+                        "Academic Batch(20XX-XX)*": "Admission Session",
+                        "Course-Code*": "Subject Code",
+                        "Course Duration in year (N) *": "Duration",
+                        "Course Academic Year*": "Current Year",
+                        "Course Name*": "Degree",
+                        "Branch Name*": "Branch",
+                    }
+                    fee2_autofill_df = build_format_rows_from_admission_db(
+                        fee2_db_source, FEE_FORMAT_COLUMNS, FEE2_DB_SOURCE_MAP,
+                        default_values={"Institute Name*": custom_header_1}
+                    )
+
                     render_p4_upload_master_format(
                         fmt_key="p4fee2",
                         fmt_title="Fee Format",
@@ -2453,7 +2651,8 @@ else:
                         sync_column_groups=FEE_FORMAT_SYNC_GROUPS,
                         college_type=p4_fee2_college_type,
                         boys_columns=FEE_FORMAT_BOYS_COLUMNS,
-                        girls_columns=FEE_FORMAT_GIRLS_COLUMNS
+                        girls_columns=FEE_FORMAT_GIRLS_COLUMNS,
+                        db_autofill_df=fee2_autofill_df
                     )
 
                 elif file_format_type == "3. Fee Correction Format":
@@ -2551,6 +2750,24 @@ else:
                     FEE3_RED_COLUMNS = [c for c in FEE_CORRECTION_FORMAT_COLUMNS if c.strip().lower().startswith("wrong")]
                     FEE3_GREEN_COLUMNS = [c for c in FEE_CORRECTION_FORMAT_COLUMNS if c.strip().lower().startswith("correct")]
 
+                    # 🗄️ बिना फ़ाइल दिए — Admission Panel (P2) के डेटा से Format 3 अपने-आप बने
+                    fee3_db_source = live_db[live_db["Target Panel Visibility"] == "P2"].copy()
+                    if "Category" in fee3_db_source.columns:
+                        _cat_mask = fee3_db_source["Category"].astype(str).str.strip().str.upper().str.contains(p4_fee3_category.upper(), na=False)
+                        if _cat_mask.any():
+                            fee3_db_source = fee3_db_source[_cat_mask].copy()
+                    FEE3_DB_SOURCE_MAP = {
+                        "Admission Year": "Admission Year",
+                        "Course Year": "Current Year",
+                        "MPTAASC Course Code": "Subject Code",
+                        "MPTAASC Course Name": "Degree",
+                        "Branch Code": "Branch",
+                    }
+                    fee3_autofill_df = build_format_rows_from_admission_db(
+                        fee3_db_source, FEE_CORRECTION_FORMAT_COLUMNS, FEE3_DB_SOURCE_MAP,
+                        default_values={"College Name": custom_header_1}
+                    )
+
                     render_p4_upload_master_format(
                         fmt_key=f"p4fee3{p4_fee3_category.lower()}",
                         fmt_title=fee3_title,
@@ -2563,7 +2780,8 @@ else:
                         boys_columns=FEE3_BOYS_COLUMNS,
                         girls_columns=FEE3_GIRLS_COLUMNS,
                         red_columns=FEE3_RED_COLUMNS,
-                        green_columns=FEE3_GREEN_COLUMNS
+                        green_columns=FEE3_GREEN_COLUMNS,
+                        db_autofill_df=fee3_autofill_df
                     )
 
                 st.markdown('</div>', unsafe_allow_html=True)
