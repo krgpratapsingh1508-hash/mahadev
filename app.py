@@ -541,7 +541,10 @@ def build_format_rows_from_admission_db(db_df, out_columns, source_map, default_
     if duration_source_col and duration_source_col in db_df.columns:
         duration_series = pd.to_numeric(db_df[duration_source_col], errors="coerce").fillna(1)
         duration_series = duration_series.clip(lower=1).astype(int)
-        out_df["_p4_duration_temp"] = duration_series.reset_index(drop=True)
+        # 🟢 फिक्स: out_df का इंडेक्स db_df (फ़िल्टर किया हुआ) से आता है, जो हमेशा
+        # 0,1,2... क्रम में नहीं होता। इंडेक्स के बजाय पोज़िशन (.values) से जोड़ने पर
+        # गलत जगह NaN नहीं आएगा, जो पहले int(NaN) पर ValueError दे रहा था।
+        out_df["_p4_duration_temp"] = duration_series.values
     else:
         out_df["_p4_duration_temp"] = 1
 
@@ -557,7 +560,11 @@ def build_format_rows_from_admission_db(db_df, out_columns, source_map, default_
     if year_output_col:
         expanded_rows = []
         for _, row in out_df.iterrows():
-            total_years = max(1, int(row["_p4_duration_temp"]))
+            _dur_raw = row["_p4_duration_temp"]
+            try:
+                total_years = max(1, int(float(_dur_raw)))
+            except (ValueError, TypeError):
+                total_years = 1  # 🟢 कोई गलत/खाली Duration वैल्यू मिले तो कम से कम 1 लाइन बने, क्रैश न हो
             for year_no in range(1, total_years + 1):
                 new_row = row.drop(labels=["_p4_duration_temp"]).to_dict()
                 new_row[year_output_col] = _ordinal_year_label(year_no)
