@@ -422,7 +422,35 @@ def sync_equal_fee_columns(df, sync_groups):
             df[c] = unified_series
     return df
 
-def render_p4_upload_master_format(fmt_key, fmt_title, fmt_columns, store_file, header_line_1, header_line_2, sync_column_groups=None):
+def calc_total_fee_columns(df, calc_groups):
+    """
+    🟢 कुछ फॉर्मेट्स में एक Total कॉलम कुछ और कॉलम्स को जोड़कर अपने-आप बनना चाहिए
+    (जैसे Total Fees = Correct Tution Fees + Correct Exam Fees + Correct Other Non-refundable Fees)।
+    calc_groups: [(total_column_name, [source_column_1, source_column_2, ...]), ...]
+    हर row के लिए source columns की numeric वैल्यू जोड़कर total_column में भर दी जाती है
+    (कोई खाली/गलत वैल्यू हो तो उसे 0 मानकर आगे बढ़ते हैं, ताकि कैलकुलेशन कभी न रुके)।
+    """
+    if not calc_groups:
+        return df
+    df = df.copy()
+    for total_col, source_cols in calc_groups:
+        existing_sources = [c for c in source_cols if c in df.columns]
+        if total_col not in df.columns or not existing_sources:
+            continue
+        numeric_sum = None
+        for c in existing_sources:
+            numeric_vals = pd.to_numeric(df[c], errors="coerce").fillna(0)
+            numeric_sum = numeric_vals if numeric_sum is None else (numeric_sum + numeric_vals)
+
+        def _format_total(v):
+            if v == int(v):
+                return str(int(v))
+            return str(v)
+
+        df[total_col] = numeric_sum.apply(_format_total)
+    return df
+
+def render_p4_upload_master_format(fmt_key, fmt_title, fmt_columns, store_file, header_line_1, header_line_2, sync_column_groups=None, calc_column_groups=None):
     st.info(
         f"📌 यह '{fmt_title}' एक अलग मास्टर टेबल है (स्टूडेंट डेटाबेस से सीधे जुड़ी नहीं है)। "
         "पहले नीचे से खाली टेम्पलेट डाउनलोड करें, उसे Excel/CSV में भरें, फिर उसी फ़ाइल को यहाँ "
@@ -465,6 +493,7 @@ def render_p4_upload_master_format(fmt_key, fmt_title, fmt_columns, store_file, 
 
             incoming_df = incoming_df[fmt_columns].astype(str)
             incoming_df = sync_equal_fee_columns(incoming_df, sync_column_groups)
+            incoming_df = calc_total_fee_columns(incoming_df, calc_column_groups)
 
             if missing_in_upload:
                 st.warning(f"⚠️ इन कॉलम्स की वैल्यू अपलोड की गई फ़ाइल में नहीं मिलीं, इसलिए खाली रखी गई हैं: {', '.join(missing_in_upload)}")
@@ -523,11 +552,12 @@ def render_p4_upload_master_format(fmt_key, fmt_title, fmt_columns, store_file, 
             saved_fmt_df[mcol] = ""
     saved_fmt_df = saved_fmt_df[fmt_columns].astype(str)
 
-    # 🟢 अगर पुराना सेव किया हुआ डेटा किसी वजह से Sync-ग्रुप में मेल नहीं खाता,
-    # तो यहाँ भी उसे ठीक करके, ज़रूरत पड़ने पर स्टोर फ़ाइल में वापस अपडेट कर दें
-    if sync_column_groups:
+    # 🟢 अगर पुराना सेव किया हुआ डेटा किसी वजह से Sync-ग्रुप या Total Fees कैलकुलेशन में
+    # मेल नहीं खाता, तो यहाँ भी उसे ठीक करके, ज़रूरत पड़ने पर स्टोर फ़ाइल में वापस अपडेट कर दें
+    if sync_column_groups or calc_column_groups:
         before_sync_df = saved_fmt_df.copy()
         saved_fmt_df = sync_equal_fee_columns(saved_fmt_df, sync_column_groups)
+        saved_fmt_df = calc_total_fee_columns(saved_fmt_df, calc_column_groups)
         if not saved_fmt_df.equals(before_sync_df):
             saved_fmt_df.to_csv(store_file, index=False)
 
@@ -2355,13 +2385,34 @@ else:
                     fee3_title = f"Fee Correction Format ({p4_fee3_category})"
                     fee3_header_2 = f"{custom_header_2} - {p4_fee3_category}" if custom_header_2 else f"FEE CORRECTION FORMAT REPORT SHEET ({p4_fee3_category})"
 
+                    # 🟢 आपकी शर्त: Total Fees हमेशा तीनों "Correct" कॉलम्स को जोड़कर अपने-आप बने —
+                    # Correct Tution + Correct Exam + Correct Other Non-refundable Fees = Total Fees
+                    cat = p4_fee3_category
+                    FEE3_CALC_GROUPS = [
+                        (f"Total Fees ({cat} Boys)", [
+                            f"Correct Tution Fees ({cat} Boys)",
+                            f"Correct Exam Fees ({cat} Boys)",
+                            f"Correct Other Non-refundable Fees ({cat} Boys)"
+                        ]),
+                        (f"Total Fees ({cat} Girls)", [
+                            f"Correct Tution Fees ({cat} Girls)",
+                            f"Correct Exam Fees ({cat} Girls)",
+                            f"Correct Other Non-refundable Fees ({cat} Girls)"
+                        ]),
+                    ]
+                    st.caption(
+                        "🧮 **ऑटो-कैलकुलेशन चालू है:** Total Fees खुद टाइप करने की ज़रूरत नहीं — यह हमेशा "
+                        "Correct Tution Fees + Correct Exam Fees + Correct Other Non-refundable Fees जोड़कर अपने-आप बन जाएगी।"
+                    )
+
                     render_p4_upload_master_format(
                         fmt_key=f"p4fee3{p4_fee3_category.lower()}",
                         fmt_title=fee3_title,
                         fmt_columns=FEE_CORRECTION_FORMAT_COLUMNS,
                         store_file=fee3_store_file,
                         header_line_1=custom_header_1,
-                        header_line_2=fee3_header_2
+                        header_line_2=fee3_header_2,
+                        calc_column_groups=FEE3_CALC_GROUPS
                     )
 
                 st.markdown('</div>', unsafe_allow_html=True)
