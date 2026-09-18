@@ -470,7 +470,7 @@ def apply_college_type_zero(df, college_type, boys_columns, girls_columns):
         df[c] = "0"
     return df
 
-def render_p4_upload_master_format(fmt_key, fmt_title, fmt_columns, store_file, header_line_1, header_line_2, sync_column_groups=None, calc_column_groups=None, college_type=None, boys_columns=None, girls_columns=None):
+def render_p4_upload_master_format(fmt_key, fmt_title, fmt_columns, store_file, header_line_1, header_line_2, sync_column_groups=None, calc_column_groups=None, college_type=None, boys_columns=None, girls_columns=None, red_columns=None, green_columns=None):
     st.info(
         f"📌 यह '{fmt_title}' एक अलग मास्टर टेबल है (स्टूडेंट डेटाबेस से सीधे जुड़ी नहीं है)। "
         "पहले नीचे से खाली टेम्पलेट डाउनलोड करें, उसे Excel/CSV में भरें, फिर उसी फ़ाइल को यहाँ "
@@ -611,10 +611,29 @@ def render_p4_upload_master_format(fmt_key, fmt_title, fmt_columns, store_file, 
     header_4 = f"Value: {filt_val}" if filt_val != "All Values" else ""
 
     st.write(f"फ़िल्टर के बाद कुल रिकॉर्ड: **{len(view_fmt_df)}**")
-    st.dataframe(
-        view_fmt_df, use_container_width=True, hide_index=True,
-        height=min((len(view_fmt_df) + 1) * 35 + 3, 8000)
-    )
+
+    # 🎨 कलर सेटिंग: "Wrong" वाले कॉलम्स का टेक्स्ट लाल (RED) और "Correct" वाले
+    # कॉलम्स का टेक्स्ट हरा (GREEN) दिखेगा — स्क्रीन, Excel और Print तीनों जगह।
+    red_cols_active = [c for c in (red_columns or []) if c in view_fmt_df.columns]
+    green_cols_active = [c for c in (green_columns or []) if c in view_fmt_df.columns]
+    RED_HEX = "#c00000"
+    GREEN_HEX = "#008000"
+
+    fmt_table_height = min((len(view_fmt_df) + 1) * 35 + 3, 8000)
+    if red_cols_active or green_cols_active:
+        try:
+            styled_fmt_df = view_fmt_df.style
+            _styler_cell = getattr(styled_fmt_df, "map", None) or styled_fmt_df.applymap
+            if red_cols_active:
+                styled_fmt_df = _styler_cell(lambda _v: f"color: {RED_HEX}; font-weight: bold;", subset=red_cols_active)
+                _styler_cell = getattr(styled_fmt_df, "map", None) or styled_fmt_df.applymap
+            if green_cols_active:
+                styled_fmt_df = _styler_cell(lambda _v: f"color: {GREEN_HEX}; font-weight: bold;", subset=green_cols_active)
+            st.dataframe(styled_fmt_df, use_container_width=True, hide_index=True, height=fmt_table_height)
+        except Exception:
+            st.dataframe(view_fmt_df, use_container_width=True, hide_index=True, height=fmt_table_height)
+    else:
+        st.dataframe(view_fmt_df, use_container_width=True, hide_index=True, height=fmt_table_height)
 
     header_lines = [h for h in [header_line_1, header_line_2, header_3, header_4] if h and h.strip()]
 
@@ -645,6 +664,22 @@ def render_p4_upload_master_format(fmt_key, fmt_title, fmt_columns, store_file, 
                     _cell = fmt_ws.cell(row=_i, column=1, value=_line)
                     _cell.font = _FmtFont(bold=True, size=12 if _i <= 2 else 10)
                     _cell.alignment = _FmtAlignment(horizontal="center")
+
+            # 🎨 Excel में भी Wrong = लाल, Correct = हरा
+            if red_cols_active or green_cols_active:
+                _color_ws = fmt_writer.sheets[sheet_name_safe]
+                _xl_header_row = start_row + 1
+                _view_cols = list(view_fmt_df.columns)
+                for _cidx, _cname in enumerate(_view_cols, start=1):
+                    if _cname in red_cols_active:
+                        _font_color = "C00000"
+                    elif _cname in green_cols_active:
+                        _font_color = "008000"
+                    else:
+                        continue
+                    for _rowno in range(_xl_header_row, _xl_header_row + len(view_fmt_df) + 1):
+                        _c = _color_ws.cell(row=_rowno, column=_cidx)
+                        _c.font = _FmtFont(color=_font_color, bold=True)
         st.download_button(
             label="📥 XLSX Download करें",
             data=xlsx_buffer.getvalue(),
@@ -658,14 +693,28 @@ def render_p4_upload_master_format(fmt_key, fmt_title, fmt_columns, store_file, 
     print_columns_list = list(view_fmt_df.columns)
     print_records_list = view_fmt_df.to_dict(orient="records")
 
-    print_headers_html = "".join([f"<th style='border:1px solid #111; padding:6px; background:#f2f2f2; font-weight:bold; text-align:center;'>{col}</th>" for col in print_columns_list])
+    def _fmt_col_color(col_name):
+        # 🎨 Print में भी: Wrong कॉलम का टेक्स्ट लाल, Correct कॉलम का टेक्स्ट हरा
+        if col_name in red_cols_active:
+            return RED_HEX
+        if col_name in green_cols_active:
+            return GREEN_HEX
+        return ""
+
+    print_headers_html = ""
+    for col in print_columns_list:
+        _hcolor = _fmt_col_color(col)
+        _hstyle = f"color:{_hcolor};" if _hcolor else ""
+        print_headers_html += f"<th style='border:1px solid #111; padding:6px; background:#f2f2f2; font-weight:bold; text-align:center; {_hstyle}'>{col}</th>"
 
     print_rows_html = ""
     for row in print_records_list:
         print_rows_html += "<tr>"
         for col in print_columns_list:
             val = str(row.get(col, "")).replace("`", "'").replace("\n", " ")
-            print_rows_html += f"<td style='border:1px solid #111; padding:5px; text-align:left;'>{val}</td>"
+            _ccolor = _fmt_col_color(col)
+            _cstyle = f"color:{_ccolor}; font-weight:bold;" if _ccolor else ""
+            print_rows_html += f"<td style='border:1px solid #111; padding:5px; text-align:left; {_cstyle}'>{val}</td>"
         print_rows_html += "</tr>"
 
     print_clean_html = f"""
@@ -2480,6 +2529,11 @@ else:
                         f"Total Fees ({cat} Girls)"
                     ]
 
+                    # 🎨 Format 3 कलर रूल: हर "Wrong ..." कॉलम का टेक्स्ट RED और
+                    # हर "Correct ..." कॉलम का टेक्स्ट GREEN दिखेगा (View + Excel + Print)
+                    FEE3_RED_COLUMNS = [c for c in FEE_CORRECTION_FORMAT_COLUMNS if c.strip().lower().startswith("wrong")]
+                    FEE3_GREEN_COLUMNS = [c for c in FEE_CORRECTION_FORMAT_COLUMNS if c.strip().lower().startswith("correct")]
+
                     render_p4_upload_master_format(
                         fmt_key=f"p4fee3{p4_fee3_category.lower()}",
                         fmt_title=fee3_title,
@@ -2490,7 +2544,9 @@ else:
                         calc_column_groups=FEE3_CALC_GROUPS,
                         college_type=p4_fee3_college_type,
                         boys_columns=FEE3_BOYS_COLUMNS,
-                        girls_columns=FEE3_GIRLS_COLUMNS
+                        girls_columns=FEE3_GIRLS_COLUMNS,
+                        red_columns=FEE3_RED_COLUMNS,
+                        green_columns=FEE3_GREEN_COLUMNS
                     )
 
                 st.markdown('</div>', unsafe_allow_html=True)
